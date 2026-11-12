@@ -1,0 +1,18 @@
+# basis data runtime — jangan di-commit (dibuat ulang otomatis)
+server/data/*.db
+server/data/*.db-shm
+server/data/*.db-wal
+
+# cache python
+__pycache__/
+*.pyc
+
+# konfigurasi per-laptop (beda tiap mesin)
+user/nama.txt
+user/server.txt
+
+# paket distribusi (isi = folder di sebelahnya)
+FILE USER/*.zip
+
+# macOS
+.DS_Store

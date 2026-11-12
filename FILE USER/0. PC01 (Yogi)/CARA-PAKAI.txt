@@ -1,0 +1,57 @@
+CARA PAKAI — MK Pemrograman Jaringan Kluster
+=================================================
+
+PERSIAPAN (cuma sekali)
+-----------------------
+1. Pastikan Python sudah terpasang: buka Command Prompt, ketik  python --version
+   Kalau muncul "'python' is not recognized", pasang dari
+   https://www.python.org/downloads/  dan CENTANG "Add Python to PATH".
+
+2. Login ke WiFi yang SAMA dengan laptop server.
+   Kalau WiFi kampus memisahkan antar-laptop, pakai hotspot HP.
+   Pastikan server (laptop ketua) juga masuk ke hotspot yang sama.
+
+3. Ganti isi server.txt kalau alamat server berubah.
+   Alamatnya dicetak server saat dijalankan, misalnya 192.168.1.7
+  (server.txt sekarang: 192.168.1.7:5000)
+
+MENJALANKAN
+-----------
+ANTARMUKA WEB (disarankan)
+--------------------------
+Dobel-klik  JALANKAN.bat  lalu tekan Enter (pilihan 1).
+Browser terbuka sendiri di  http://127.0.0.1:7788/
+Kalau tidak terbuka, salin alamat itu ke browser.
+
+  - Klik nama laptop di panel kanan  -> kirim pribadi ke orang itu
+    (klik sekali lagi untuk batal)
+  - Tombol TCP = dijamin sampai     UDP = cepat, boleh hilang
+  - Enter kirim, Shift+Enter baris baru
+  - Tutup dengan Ctrl+C di jendela hitam
+
+CARA KERJANYA: browser TIDAK bisa membuka socket jaringan mentah, jadi
+program client.py tetap yang memegang sambungan TCP/UDP ke server.
+Halaman web cuma jembatan ke localhost di laptopmu sendiri - tidak
+membuka port apa pun ke jaringan, jadi aman dan tidak kena firewall.
+
+Dobel-klik  JALANKAN.bat
+Tidak perlu mengetik apa pun.
+
+Kalau muncul peringatan "Windows protected your PC":
+   More info  ->  Run anyway
+Itu peringatan normal untuk berkas .bat kiriman, bukan virus.
+
+MENGETIK PESAN
+--------------
+  halo semua              kirim ke semua orang (TCP, dijamin sampai)
+  /ke PC04 (Deski) halo   kirim ke satu orang saja
+  /udp pesan cepat        kirim lewat UDP (cepat, tidak dijamin sampai)
+  /online                 lihat siapa saja yang aktif
+  /keluar                 keluar
+
+KALAU GAGAL
+-----------
+  "Gagal menyambung ke ..."     server belum jalan / alamat salah / beda WiFi
+  "nama ... sudah dipakai"      folder ketukar dengan milik orang lain
+  Muncul kotak Allow access?    klik Allow (firewall Windows)
+  Jendela langsung tertutup     antivirus mengarantina JALANKAN.bat

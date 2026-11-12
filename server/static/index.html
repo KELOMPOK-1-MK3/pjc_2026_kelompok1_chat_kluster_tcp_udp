@@ -1,0 +1,2437 @@
+<!DOCTYPE html>
+<html lang="id" data-tema="terang">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Kluster — MK Pemrograman Jaringan Kluster</title>
+<style>
+  /* ===================================================================
+     MODE TERANG (bawaan) + mode gelap.
+
+     Dua warna sinyal, masing-masing PUNYA TUGAS — bukan hiasan:
+        biru   = jalur TCP  (dijamin sampai)
+        ungu   = jalur UDP  (cepat, tanpa jaminan)
+        hijau  = node hidup, merah = node mati
+     =================================================================== */
+  :root{
+    --kanvas:#eef2f7;
+    --kanvas-2:#e2e8f0;
+    --panel:#ffffff;
+    --panel-naik:#f7f9fc;
+    --garis:rgba(15,35,70,.10);
+    --garis-kuat:rgba(15,35,70,.16);
+    --tinta:#16202f;
+    --tinta-2:#4a5872;
+    --tinta-3:#6b7a91;        /* 4,9:1 di atas putih — teks bantu tetap terbaca */
+
+    --tcp:#2563eb;            /* biru — TCP */
+    --tcp-redup:rgba(37,99,235,.12);
+    --udp:#7c3aed;            /* ungu — UDP */
+    --udp-redup:rgba(124,58,237,.12);
+    --hidup:#16a34a;
+    --mati:#dc2626;
+    --tunggu:#b45309;
+
+    --bayang:0 1px 2px rgba(16,35,70,.06),0 8px 24px rgba(16,35,70,.07);
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  html[data-tema="gelap"]{
+    --kanvas:#0b0c0e;
+    --kanvas-2:#101216;
+    --panel:#121417;
+    --panel-naik:#171a1e;
+    --garis:rgba(255,255,255,.07);
+    --garis-kuat:rgba(255,255,255,.13);
+    --tinta:#e8eaed;
+    --tinta-2:#a8b0b8;
+    --tinta-3:#6d757e;
+
+    --tcp:#60a5fa;
+    --tcp-redup:rgba(96,165,250,.16);
+    --udp:#a78bfa;
+    --udp-redup:rgba(167,139,250,.16);
+    --hidup:#57a35f;
+    --mati:#e5534b;
+    --tunggu:#c9a227;
+    --bayang:none;
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--kanvas);color:var(--tinta);
+    font:13.5px/1.45 var(--ui);
+    display:flex;flex-direction:column;gap:9px;
+    padding:10px 12px;overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+    transition:background .25s,color .25s;
+  }
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums;
+        font-feature-settings:"zero" 1}
+
+  /* ---------------------------------------------------------- kepala */
+  header{display:flex;align-items:center;gap:11px;flex:0 0 auto}
+  .merk{display:flex;align-items:baseline;gap:9px;min-width:0}
+  h1{font-size:15px;font-weight:650;margin:0;letter-spacing:-.2px;white-space:nowrap}
+  .sub{color:var(--tinta-3);font-size:11px;white-space:nowrap;
+       overflow:hidden;text-overflow:ellipsis}
+  .kanan{margin-left:auto;display:flex;align-items:center;gap:7px;flex:0 0 auto}
+
+  .denyut{width:7px;height:7px;border-radius:50%;background:var(--hidup);
+          box-shadow:0 0 0 0 rgba(22,163,74,.45);animation:denyut 2.4s infinite}
+  @keyframes denyut{
+    0%{box-shadow:0 0 0 0 rgba(22,163,74,.4)}
+    70%{box-shadow:0 0 0 7px rgba(22,163,74,0)}
+    100%{box-shadow:0 0 0 0 rgba(22,163,74,0)}
+  }
+  .jam{color:var(--tinta-3);font-size:11px}
+
+  /* --------------------------------------------------------- tombol */
+  button{
+    background:var(--panel);color:var(--tinta);
+    border:1px solid var(--garis-kuat);border-radius:7px;
+    padding:5px 10px;font:500 12px var(--ui);cursor:pointer;
+    transition:background .14s,border-color .14s,transform .06s,box-shadow .14s;
+  }
+  button:hover:not(:disabled){background:var(--panel-naik);border-color:var(--tinta-3)}
+  button:active:not(:disabled){transform:translateY(1px)}
+  button:disabled{opacity:.35;cursor:not-allowed}
+  button.bahaya{color:var(--mati);border-color:rgba(220,38,38,.35)}
+  button.bahaya:hover:not(:disabled){background:rgba(220,38,38,.08)}
+  button.tombol-utama{color:#fff;background:var(--tcp);border-color:var(--tcp);
+               box-shadow:0 1px 3px rgba(37,99,235,.35)}
+  button.tombol-utama:hover:not(:disabled){background:#1d4fd7;border-color:#1d4fd7}
+  button.tonal{background:var(--tcp-redup);color:var(--tcp);border-color:transparent}
+  button.tonal:hover:not(:disabled){background:var(--tcp-redup);filter:brightness(.97)}
+  button.tonal.udp{background:var(--udp-redup);color:var(--udp)}
+  button.lega{padding:7px 14px}
+  button:focus-visible{outline:2px solid var(--tcp);outline-offset:1px}
+  .seg{display:inline-flex;border:1px solid var(--garis-kuat);border-radius:7px;
+       overflow:hidden;background:var(--panel)}
+  .seg button{border:0;border-radius:0;padding:5px 11px;background:transparent}
+  .seg button + button{border-left:1px solid var(--garis)}
+  .seg button.pilih{background:var(--tcp);color:#fff}
+  .seg button.pilih.udp{background:var(--udp)}
+
+  /* ---------------------------------------------------------- panel */
+  .panel{
+    background:var(--panel);border:1px solid var(--garis);border-radius:11px;
+    display:flex;flex-direction:column;min-height:0;position:relative;
+    box-shadow:var(--bayang);
+  }
+  .kepala-panel{
+    display:flex;align-items:center;gap:8px;flex:0 0 auto;
+    padding:9px 12px 7px;border-bottom:1px solid var(--garis);
+  }
+  .kepala-panel h2{
+    margin:0;font-size:10.5px;font-weight:650;letter-spacing:.9px;
+    text-transform:uppercase;color:var(--tinta-3);
+  }
+  .kepala-panel .hitung{color:var(--tinta-2);font-weight:550;letter-spacing:0;
+                        text-transform:none}
+  .gulir{overflow-y:auto;min-height:0;flex:1 1 auto;overscroll-behavior:contain}
+  .gulir::-webkit-scrollbar{width:9px}
+  .gulir::-webkit-scrollbar-thumb{background:var(--garis-kuat);border-radius:5px}
+  .gulir::-webkit-scrollbar-track{background:transparent}
+
+  /* ------------------------------------------------------ tata letak */
+  .utama{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,1fr);
+         gap:9px;flex:1 1 auto;min-height:0}
+  .kanan-kolom{display:flex;flex-direction:column;gap:9px;min-height:0}
+  .bawah{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1.05fr) minmax(0,.85fr);
+         gap:9px;flex:0 0 auto;height:clamp(212px,33vh,300px)}
+
+  /* ------------------------------------------------------ kanvas 3D */
+  /* Kedua kanvas dibuat absolute supaya menumpuk persis di area yang sama:
+     hanya satu yang terlihat per mode, jadi posisinya harus identik. */
+  #kanvas3d,#kanvas2d{position:absolute;inset:0;width:100%;height:100%;
+    display:block;cursor:grab;touch-action:none}
+  #kanvas3d:active,#kanvas2d:active{cursor:grabbing}
+
+  /* Baris alat di atas peta: pilih renderer + status aset */
+  /* Gerigi alat (renderer + status aset) di ATAS; legenda di BAWAHNYA.
+     Sebelumnya keduanya bottom:10px → saling menimpa dan label terpotong. */
+  .baris-alat{position:absolute;left:10px;bottom:38px;display:flex;gap:8px;
+    align-items:center;z-index:6;background:var(--panel);border:1px solid var(--garis-kuat);
+    border-radius:8px;padding:5px 9px;font-size:11px;
+    box-shadow:var(--bayang);max-width:calc(100% - 20px)}
+  .baris-alat select{font:inherit;font-size:11px;padding:2px 5px;border-radius:6px;
+    border:1px solid var(--garis-kuat);background:var(--panel);color:var(--tinta)}
+  .baris-alat .sub{font-size:10.5px;color:var(--tinta-2);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* Label 3D (mode WebGL) — DOM overlay di atas canvas.
+     DOM, bukan gambar canvas, supaya teks tetap tajam saat di-zoom. */
+  .lapisan-label{position:absolute;inset:0;pointer-events:none;z-index:4}
+  .label-3d{position:absolute;left:0;top:0;white-space:nowrap;
+    font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;
+    background:var(--panel);border:1px solid var(--tcp);color:var(--tcp);
+    box-shadow:0 1px 5px rgba(15,30,55,.12);will-change:transform}
+  .label-3d.label-server{font-size:11.5px;font-weight:700}
+  .label-3d.label-mati{border-color:var(--mati);color:var(--mati);
+    background:var(--panel);opacity:.85}
+  .peta-bungkus{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;
+                border-radius:0 0 11px 11px;background:var(--kanvas-2)}
+  html[data-tema="gelap"] .peta-bungkus{background:#0d0f12}
+  .legenda{
+    position:absolute;left:12px;bottom:10px;display:flex;gap:14px;flex-wrap:wrap;
+    font-size:11px;color:var(--tinta-2);pointer-events:none;
+    background:color-mix(in srgb, var(--panel) 78%, transparent);
+    padding:5px 9px;border-radius:8px;border:1px solid var(--garis);
+    backdrop-filter:blur(6px);
+  }
+  .legenda span{display:inline-flex;align-items:center;gap:5px}
+  .contoh-garis{width:16px;height:2px;border-radius:2px}
+  .contoh-titik{width:9px;height:9px;border-radius:50%;
+    box-shadow:0 0 6px currentColor}
+  .contoh-kotak{width:11px;height:11px;border-radius:2px}
+  .kosong-peta{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:7px;text-align:center;
+    color:var(--tinta-3);font-size:12px;padding:18px;pointer-events:none;
+  }
+  .kosong-peta code{
+    background:var(--panel-naik);border:1px solid var(--garis);
+    padding:5px 11px;border-radius:6px;font:11.5px var(--mono);
+    color:var(--tinta-2);user-select:all;
+  }
+  .sarangan-3d{
+    position:absolute;right:12px;top:10px;font-size:10.5px;color:var(--tinta-3);
+    pointer-events:none;background:color-mix(in srgb, var(--panel) 78%, transparent);
+    padding:4px 8px;border-radius:7px;border:1px solid var(--garis);
+    backdrop-filter:blur(6px);
+  }
+
+  /* ---------------------------------------------------------- kartu */
+  .kartu-baris{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;flex:0 0 auto}
+  .kartu{
+    background:var(--panel);border:1px solid var(--garis);border-radius:10px;
+    padding:8px 10px;box-shadow:var(--bayang);
+  }
+  .kartu .label{font-size:9.5px;color:var(--tinta-3);text-transform:uppercase;
+                letter-spacing:.6px;white-space:nowrap;overflow:hidden;
+                text-overflow:ellipsis}
+  .kartu .nilai{font-size:19px;font-weight:650;margin-top:1px;line-height:1.15}
+  .kartu .kaki{font-size:10px;color:var(--tinta-3);margin-top:1px}
+
+  /* ------------------------------------------------------- tulis pesan */
+  .tulis{padding:9px 10px;display:flex;flex-direction:column;gap:7px;flex:0 0 auto}
+  .baris-kirim{display:flex;gap:7px;align-items:stretch}
+  textarea{
+    flex:1 1 auto;min-width:0;
+    background:var(--panel-naik);color:var(--tinta);
+    border:1px solid var(--garis-kuat);border-radius:8px;
+    padding:8px 10px;font:12.5px/1.45 var(--ui);resize:none;height:42px;
+    outline:none;transition:border-color .14s,box-shadow .14s;
+  }
+  textarea:focus{border-color:var(--tcp);box-shadow:0 0 0 3px var(--tcp-redup)}
+  textarea::placeholder{color:var(--tinta-3)}
+  .baris-kirim button{flex:0 0 auto;white-space:nowrap}
+  .bantuan{color:var(--tinta-3);font-size:10.5px}
+
+  /* --------------------------------------------------------- laptop */
+  .petak-laptop{display:flex;flex-wrap:wrap;gap:6px;padding:7px;align-content:flex-start}
+  .petak-laptop .laptop{flex:1 1 200px;min-width:0}
+  .laptop{
+    border:1px solid var(--garis);border-radius:9px;background:var(--panel-naik);
+    padding:7px 9px;transition:border-color .2s,opacity .2s,transform .2s;min-width:0;
+  }
+  .laptop:hover{transform:translateY(-1px)}
+  .laptop.putus{opacity:.5}
+  .laptop.dilayani{border-color:var(--tcp)}
+  .laptop.aktif-kirim{border-color:var(--udp)}
+  .baris-atas{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .titik{width:7px;height:7px;border-radius:50%;background:var(--hidup);flex:0 0 auto}
+  .titik.mati{background:var(--mati)}
+  .nama{font-weight:650;font-size:12px;white-space:nowrap;overflow:hidden;
+        text-overflow:ellipsis;min-width:0;flex:1 1 auto}
+  .pil{
+    font-size:9.5px;padding:1.5px 6px;border-radius:99px;font-weight:650;
+    letter-spacing:.2px;border:1px solid transparent;flex:0 0 auto;
+  }
+  .pil.on{color:#15803d;background:rgba(22,163,74,.12);border-color:rgba(22,163,74,.28)}
+  html[data-tema="gelap"] .pil.on{color:#a9d9b0}
+  .pil.off{color:#b91c1c;background:rgba(220,38,38,.10);border-color:rgba(220,38,38,.28)}
+  html[data-tema="gelap"] .pil.off{color:#f0a9a4}
+  .meta-tip{cursor:help;border-bottom:1px dotted var(--garis-kuat)}
+  .aksi{display:flex;gap:3px;flex-wrap:wrap;margin-top:5px}
+  .aksi button{padding:2px 7px;font-size:10px;line-height:1.5}
+
+  /* ---------------------------------------------------------- tabel */
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{
+    text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;
+    color:var(--tinta-3);font-weight:650;padding:0 10px 5px;
+    border-bottom:1px solid var(--garis);position:sticky;top:0;
+    background:var(--panel);z-index:1;
+  }
+  td{padding:5px 10px;border-bottom:1px solid var(--garis);vertical-align:top}
+  /* Kolom ISI: potong dengan elipsis, jangan biarkan teks panjang
+     menabrak tepi panel. Judul lengkap muncul saat kursor diarahkan. */
+  td:last-child{max-width:0;overflow:hidden;text-overflow:ellipsis;
+                white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  .lencana{
+    display:inline-block;padding:.5px 6px;border-radius:5px;
+    font-size:10px;font-weight:650;white-space:nowrap;
+  }
+  /* Sel angka: jangan sampai "0.4 ms" pecah jadi dua baris — kolom
+     jadi tidak rata dan baris melompat tinggi. tabular-nums membuat
+     angka rata lebarnya antar baris. */
+  td.mono{white-space:nowrap;font-variant-numeric:tabular-nums}
+  .lencana.tcp{color:var(--tcp);background:var(--tcp-redup)}
+  .lencana.udp{color:var(--udp);background:var(--udp-redup)}
+  .lencana.semua{color:var(--tcp);background:var(--tcp-redup)}
+  .lencana.satu{color:var(--udp);background:var(--udp-redup)}
+  .lencana.mati{color:var(--mati);background:rgba(220,38,38,.10)}
+  .kosong{color:var(--tinta-3);font-style:italic;padding:11px 10px;font-size:11.5px}
+  tr.masuk{animation:masuk 1.1s ease-out}
+  @keyframes masuk{from{background:var(--tcp-redup)}to{background:transparent}}
+
+  .cari{
+    background:var(--panel-naik);color:var(--tinta);border:1px solid var(--garis);
+    border-radius:7px;padding:5px 9px;font:11.5px var(--ui);outline:none;
+    margin-left:auto;width:140px;
+  }
+  .cari:focus{border-color:var(--tcp);box-shadow:0 0 0 3px var(--tcp-redup)}
+
+  .aksi-cepat{padding:9px 10px;display:flex;flex-direction:column;gap:6px}
+  .aksi-cepat button{text-align:left;padding:7px 10px;font-size:12px}
+  .kaki-panel{margin-top:auto;padding:8px 10px;border-top:1px solid var(--garis);
+              color:var(--tinta-3);font-size:10.5px}
+
+  /* ----------------------------------------------------- notifikasi */
+  #pesan-melayang{
+    display:inline-flex;align-items:center;max-width:0;opacity:0;
+    overflow:hidden;white-space:nowrap;padding-left:0;
+    border-left:2px solid transparent;font-size:11.5px;color:var(--tinta-2);
+    transition:max-width .24s ease,opacity .18s,padding .24s;
+  }
+  #pesan-melayang.tampil{max-width:min(400px,30vw);opacity:1;padding-left:8px}
+  #pesan-melayang.ok{border-left-color:var(--hidup);color:#15803d}
+  #pesan-melayang.gagal{border-left-color:var(--mati);color:#b91c1c}
+  #pesan-melayang.info{border-left-color:var(--tcp);color:var(--tcp)}
+
+  /* ----------------------------------------------- mode presentasi */
+  body.besar{font-size:15.5px}
+  body.besar .kartu .nilai{font-size:23px}
+  body.besar table{font-size:13px}
+  body.besar .nama{font-size:14.5px}
+
+  @media (prefers-reduced-motion:reduce){
+    .denyut{animation:none}
+    tr.masuk{animation:none}
+  }
+  @media (max-width:1180px){
+    .utama{grid-template-columns:1fr}
+    .bawah{grid-template-columns:1fr 1fr}
+    .kanan-kolom{max-height:44vh}
+  }
+
+/* ------------------------------------------------------------------
+   PERPINDAHAN TEMA — lingkaran melebar dari tombol yang diklik.
+   Sama seperti di klien web pengguna, supaya dua aplikasi terasa satu
+   keluarga. Bawaannya View Transitions memberi cross-fade pada
+   ::view-transition-old/new; itu harus DIMATIKAN dulu, kalau tidak
+   hasilnya cross-fade + lingkaran sekaligus = kabur.
+   ------------------------------------------------------------------ */
+@supports (view-transition-name: root) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+  ::view-transition-old(root) { z-index: 1 }
+  ::view-transition-new(root) { z-index: 2 }
+}
+
+/* Dipakai sesaat saat tema berganti: matikan transisi CSS supaya warna
+   tidak "mengejar" di belakang lingkaran yang menyapu. */
+html.tanpa-transisi *, html.tanpa-transisi *::before,
+html.tanpa-transisi *::after{
+  transition:none !important;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="merk">
+    <span class="denyut" id="titik-hidup"></span>
+    <h1>Dashboard Kluster</h1>
+    <span class="sub" id="sub-node">MK Pemrograman Jaringan Kluster · Ilmu Komputer UBBG</span>
+  </div>
+  <div class="kanan">
+    <span id="pesan-melayang"></span>
+    <span class="jam mono" id="jam">—</span>
+    <!-- Jeda menghentikan PENYEGARAN DATA, bukan tema. Dulu ia duduk di
+         dalam grup tema sehingga terbaca sebagai pilihan tampilan. -->
+    <button id="btn-jeda" class="sekunder" title="Hentikan penyegaran data sementara">Jeda</button>
+    <div class="seg" title="Tema tampilan">
+      <button id="btn-terang" class="pilih">Terang</button>
+      <button id="btn-gelap">Gelap</button>
+    </div>
+    <button id="btn-besar" title="Perbesar huruf untuk presentasi">A+</button>
+  </div>
+</header>
+
+<!-- ===================== baris atas ===================== -->
+<div class="utama">
+
+  <!-- ---------- peta 3D ---------- -->
+  <div class="panel">
+    <div class="kepala-panel">
+      <h2>Peta Kluster 3D</h2>
+      <span class="hitung mono" id="h-peta">0 node</span>
+      <span class="sub" style="margin-left:auto" id="peta-status"></span>
+    </div>
+
+    <div class="peta-bungkus">
+      <!-- Kanvas WebGL (three.js + aset GLB). Tersembunyi sampai WebGL
+           benar-benar siap, supaya tidak ada frame kosong saat startup. -->
+      <canvas id="kanvas3d" style="display:none"></canvas>
+      <!-- Canvas fallback: dipakai kalau WebGL / three.js tidak tersedia.
+           Default-nya terlihat, jadi dashboard selalu punya peta. -->
+      <canvas id="kanvas2d"></canvas>
+
+      <div class="kosong-peta" id="kosong-peta">
+        <div>Belum ada laptop yang tersambung.</div>
+        <div>Jalankan di laptop anggota:</div>
+        <code id="perintah-klien">python3 client.py --server 192.168.1.7</code>
+        <div style="font-size:10.5px">Klik untuk memilih, lalu salin.</div>
+      </div>
+
+      <div class="sarangan-3d">Seret untuk memutar · gulir untuk zoom</div>
+
+      <!-- Status aset 3D + pemilih renderer -->
+      <div class="baris-alat">
+        <label for="pilih-render" class="sub">renderer</label>
+        <select id="pilih-render" title="Renderer peta 3D">
+          <option value="auto">Otomatis</option>
+          <option value="webgl">WebGL (aset 3D)</option>
+          <option value="canvas">Canvas 2D (ringan)</option>
+        </select>
+        <span class="sub" id="status-aset">memuat aset…</span>
+      </div>
+
+      <div class="legenda">
+        <span><i class="contoh-kotak" style="background:var(--tcp)"></i> server / PC</span>
+        <span><i class="contoh-titik" style="background:#f59e0b"></i> pesan naik</span>
+        <span><i class="contoh-titik" style="background:#38bdf8"></i> pesan turun</span>
+        <span><i class="contoh-garis" style="background:var(--garis-kuat)"></i> kabel</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- kolom kanan ---------- -->
+  <div class="kanan-kolom">
+
+    <div class="kartu-baris">
+      <div class="kartu"><div class="label">Laptop</div>
+        <div class="nilai mono" id="s-online">0</div>
+        <div class="kaki" id="k-online">tersambung</div></div>
+      <div class="kartu"><div class="label">Node</div>
+        <div class="nilai mono" id="s-node">0</div>
+        <div class="kaki" id="k-node">dalam kluster</div></div>
+      <div class="kartu"><div class="label">Pesan</div>
+        <div class="nilai mono" id="s-pesan">0</div>
+        <div class="kaki" id="k-pesan">TCP + UDP</div></div>
+      <div class="kartu"><div class="label">Latensi</div>
+        <div class="nilai mono" id="s-latensi" style="font-size:14px">—</div>
+        <div class="kaki">TCP / UDP ke node tetangga</div></div>
+    </div>
+
+    <div class="panel" style="flex:0 0 auto">
+      <div class="kepala-panel">
+        <h2>Kirim Pesan</h2>
+        <div class="seg" style="margin-left:auto">
+          <button id="pilih-tcp" class="pilih" title="Jalur TCP — dijamin sampai">TCP</button>
+          <button id="pilih-udp" class="udp" title="Jalur UDP — cepat, tanpa jaminan">UDP</button>
+        </div>
+      </div>
+      <div class="tulis">
+        <div class="baris-kirim">
+          <textarea id="isi-pesan" maxlength="2000"
+            placeholder="Tulis pesan untuk semua laptop…"></textarea>
+          <button class="tombol-utama lega" id="btn-kirim">Kirim<br>ke semua</button>
+        </div>
+        <div class="bantuan">
+          <span class="mono" id="sisa">2000</span> karakter ·
+          Enter kirim · Shift+Enter baris baru ·
+          jalur <b id="jalur-info">TCP</b>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="flex:1 1 auto;min-height:0">
+      <div class="kepala-panel">
+        <h2>Pesan Terakhir</h2>
+        <span class="sub" style="margin-left:auto" id="arus-info"></span>
+      </div>
+      <div class="gulir">
+        <table>
+          <thead><tr><th style="width:54px">Jam</th><th style="width:104px">Dari</th>
+            <th style="width:88px">Jalur</th><th>Isi</th></tr></thead>
+          <tbody id="isi-pesan-tabel">
+            <tr><td colspan="4" class="kosong">Belum ada pesan.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===================== baris bawah ===================== -->
+<div class="bawah">
+
+  <div class="panel">
+    <div class="kepala-panel">
+      <h2>Laptop</h2>
+      <span class="hitung mono" id="h-online">(0)</span>
+      <input class="cari" id="cari" placeholder="cari laptop…">
+    </div>
+    <div class="gulir" id="daftar-laptop"></div>
+  </div>
+
+  <div class="panel">
+    <div class="kepala-panel">
+      <h2>Node Kluster</h2>
+      <span class="hitung mono" id="h-node">(0)</span>
+    </div>
+    <div class="gulir">
+      <table>
+        <thead><tr><th style="width:64px">Node</th><th style="width:60px">TCP</th>
+          <th style="width:60px">UDP</th><th>Status</th></tr></thead>
+        <tbody id="isi-node">
+          <tr><td colspan="4" class="kosong">Belum ada node lain.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="kepala-panel"><h2>Sambung / Putus</h2></div>
+    <div class="gulir">
+      <table>
+        <thead><tr><th style="width:66px">Jam</th><th>Laptop</th>
+          <th style="width:88px">Kejadian</th></tr></thead>
+        <tbody id="isi-kejadian">
+          <tr><td colspan="3" class="kosong">Belum ada kejadian.</td></tr></tbody>
+      </table>
+    </div>
+    <div class="kaki-panel">
+      <button id="btn-csv" style="width:100%">Unduh riwayat (CSV)</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+
+/* ==========================================================================
+   PETA 3D — kanvas 2D + proyeksi perspektif sendiri.
+
+   Kenapa bukan Three.js:
+       Laptop anggota sering tanpa internet, dan `npm install` di enam
+       laptop berarti berminggu-minggu. Proyeksi perspektif itu cuma
+       beberapa baris: putar dunia (yaw + pitch), lalu bagi dengan jarak.
+       Hasilnya sudah cukup untuk membedakan node, kabel, dan paket.
+
+   Sumbu dunia:
+       x = kanan, y = atas, z = ke arah viewers
+  _node_ ada di pusat (node server ini), laptop mengelilingi sebagai cincin
+   di bawah, node kluster lain di cincin luar yang lebih jauh.
+   ========================================================================== */
+
+const el = (id) => document.getElementById(id);
+const AMAN = (s) => String(s ?? "").replace(/[<>&"]/g,
+  (c) => ({"<":"&lt;",">":"&gt;","&":"&amp;","\"":"&quot;"}[c]));
+const KURANGI_GERAK = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* -------------------------------------------------------------- kamera */
+const Kam = {
+  yaw: 0.62,          /* putar horizontal — sudut isometrik klasik */
+  pitch: -0.42,       /* elevasi — dari atas, supaya lantai & kabel terlihat */
+  skala: 1.0,         /* zoom manual (multiplier) */
+  putarOtomatis: false,   /* isometrik: diam lebih enak dibaca */
+};
+
+function ambilWarna(nama) {
+  return getComputedStyle(document.documentElement).getPropertyValue(nama).trim();
+}
+
+/* ----------------------------------------------------------------------
+   PROYEKSI ORTOGRAFIS ISOMETRIK
+
+   Kenapa ortografis, bukan perspektif:
+     - Perspektif bikin objek yang jauh jadi kecil dan objek yang dekat jadi
+       besar. Di peta jaringan dengan 5 objek, itu bikin scene berantakan:
+       satu PC sebesar server, yang lain cuma titik.
+     - Ortografis menjaga SEMUA objek dengan ukuran sama persis di layar.
+       Yang membedakan hanya posisi. Ini kunci supaya peta terlihat rapi.
+
+   Rotasi yaw Around sumbu Y, pitch elevation. Tidak ada pembagian
+   dengan jarak — semua titik diproyeksikan linear.
+
+   `z` yang dikembalikan adalah KEDALAMAN (menakin ke belakang), dipakai
+   untuk mengurutkan wajah supaya tidak saling menutup.
+   ---------------------------------------------------------------------- */
+function proyek(p) {
+  const cy = Math.cos(Kam.yaw), sy = Math.sin(Kam.yaw);
+  const X = p.x * cy + p.z * sy;          /* kiri/kanan di layar */
+  const Zd = -p.x * sy + p.z * cy;         /* kedalaman */
+
+  const cp = Math.cos(Kam.pitch), sp = Math.sin(Kam.pitch);
+  const Y = p.y * cp - Zd * sp;            /* tinggi di layar */
+  const Z = p.y * sp + Zd * cp;            /* kedalaman akhir */
+
+  const skala = (Kam.skalaEfektif || Kam.skala || 1) * (Kanvas.dpr || 1);
+  return {
+    x: (Kanvas.dpr * Kanvas.lebar / 2) + X * skala,
+    y: (Kanvas.dpr * Kanvas.tinggi / 2) - Y * skala,
+    s: skala,
+    z: Z,
+  };
+}
+
+const Kanvas = { ctx: null, lebar: 0, tinggi: 0, dpr: 1 };
+
+/* Faktor ukuran model. Skala di layar = focal / jarak, dan jarak kamera
+   dihitung agar TITIK PUSAT objek muat — jadi ukuran model di layar
+   ditentukan perbandingan model : radius cincin. Faktor ini yang membuat
+   perakitannya besar tanpa membuat cincinnya melebar. */
+/* Skala model. Makin besar, makin banyak piksel untuk detail — tapi harus
+   masih muat bersama node lain di kanvas. 1.85 bikin grid drive bay
+   server terbaca jelas sebagai grid slot, bukan blok polos. */
+const SKALA_MODEL = 1.85;
+
+/* -------------------------------------------------- model dunia 3D */
+const Dunia = {
+  node: null,            /* node server ini (pusat) */
+  laptop: [],            /* {nama, x,y,z, hidup} */
+  kluster: [],           /* {nama, x,y,z, hidup, tcp_ms, udp_ms} */
+  paket: [],             /* animasi paket berjalan */
+};
+
+let idPesanTerakhir = 0;
+let dataTerakhir = null;
+let jeda = false;
+let laptopPutus = new Map();
+let idBesar = 0;
+
+/* ======================================================================
+   PEMBENTUK DUNIA
+   ====================================================================== */
+function susunDunia(d) {
+  const node = d.node || { nama: "n1", tcp: 5000, udp: 5010 };
+  /* Node utama di atas titik berat scene supaya komposisi terpusat.
+     seluruh koordinat Y digeser supaya pusat optik tidak turun ke bawah. */
+  /* tinggiDasar = jarak objek ke lantai (dipakai untuk bayangan) */
+  /* Node utama menghadap KAMERA (rot 0) supaya muka + grid drive bays-nya
+     kelihatan penuh — itu yang bikin orang langsung paham "ini server". */
+  Dunia.node = { nama: node.nama, x: 0, y: 58, z: 0, hidup: true,
+                 rot: 0, tinggiDasar: 16 };
+
+  /* laptop: cincin dekat, sedikit di bawah pusat.
+     Sudutnya DILETAHKAN (bukan dibagi rata) supaya:
+       - tidak ada PC yang menumpuk di bawah node utama
+       - jarak antar PC cukup lebar supaya tidak saling tumpang tindih
+     Node utama ada di tengah-atas, jadi PC tidak menempati area itu. */
+  const SUDUT_PC = [205, 325, 85, 145, 265, 25];
+  const laptop = d.online.map((x, i) => {
+    const sudut = (SUDUT_PC[i % SUDUT_PC.length] * Math.PI) / 180;
+    return {
+      nama: x.nama, sistem: x.sistem,
+      /* Radius 118 — bukan 165. Sebaran terlalu lebar bikin kamera mundur
+         dan semua objek jadi kecil, jadi detail model (grid drive bay,
+         grille kipas) jadi 2-3 piksel dan hilang. */
+      x: Math.cos(sudut) * 100,
+      y: 10,
+      z: Math.sin(sudut) * 100,
+      hidup: true,
+      /* Semua PC memakai rotasi yang SAMA (3/4 view) supaya ukurannya
+         konsisten — kalau tiap PC menghadap tengah, yang di belakang
+         kelihatan miring dan yang di depan tegak. */
+      rot: 24,
+      tinggiDasar: 10,
+    };
+  });
+
+  /* node kluster lain: cincin luar, lebih jauh.
+     PENTING: sudut dihitung dari DAFTAR node (d.dikenal), bukan dari
+     `kluster` yang belum ada — kalau pakai `kluster.length` di dalam map-nya
+     sendiri, hasilnya "Cannot access before initialization" dan seluruh
+     dashboard jadi kosong tanpa error yang kelihatan. */
+  const daftarNode = d.dikenal || [];
+  const kluster = daftarNode.map((x, i) => {
+    /* Sudut node kluster di CELAH antar PC (205, 325, 85, 145, 265, 25).
+       Celah yang aman: 35°, 115°, 175°, 235°, 295°.
+       Kalau segaris dengan PC, node-nya ada di belakang PC dan keduanya
+       tumpang tindih di layar. */
+    const CELAH = [35, 115, 175, 235, 295];
+    const sudut = (CELAH[i % CELAH.length] * Math.PI) / 180;
+    return {
+      nama: x.nama,
+      x: Math.cos(sudut) * 168,
+      y: -12,
+      z: Math.sin(sudut) * 168,
+      hidup: x.hidup !== false,
+      tcp_ms: x.tcp_ms, udp_ms: x.udp_ms,
+      rot: 24,
+      tinggiDasar: 12,
+    };
+  });
+
+  Dunia.laptop = laptop;
+  Dunia.kluster = kluster;
+}
+
+/* ======================================================================
+   KAMERA OTOMATIS — supaya SEMUA objek selalu muat di kanvas.
+
+   Cara: ukur batas terjauh dari semua titik dunia (dalam koordinat ruang),
+   lalu hitung jarak kamera yang dibutuhkan supaya titik itu masuk frame.
+   Cara ini lebih jujur daripada menebak angka radius: kalau nanti ada 6 node,
+   kamera tetap pas tanpa perlu diubah manual.
+
+   Dipanggil setelah susunDunia() — hasilnya disimpan di Kam.rasioZoom.
+   ====================================================================== */
+function sesuaikanKamera() {
+  /* Titik-titik yang dipakai untuk fitting. PENTING: bukan cuma pusat
+     objek — kalau cuma pusat, ujung model bisa keluar kanvas karena
+     ukurannya besar. Ujung model ikut dihitung. */
+  const titik = [];
+  const tambah = (o, yTinggi, yLebar, radius) => {
+    /* 8 titik sudut kotak pembatas objek — lebih akurat daripada cuma
+       pusat, karena ujung model bisa keluar kanvas. */
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+      titik.push({ x: o.x + radius * sx, y: o.y + (sy > 0 ? yTinggi : -yLebar),
+                   z: o.z + radius * sz });
+    }
+  };
+  /* Radius HARUS sesuai ukuran model SEBENARNYA, bukan angka tebakan.
+     Model server: W=22, D=9.5 (lokal) x SKALA_MODEL 1.28 → ±28 piksel
+     dunia. Model PC: x -20..+20 lokal → ±26.
+     Kalau radiusnya dilebihkan, kamera mundur dan objeknya jadi kecil —
+     detail (grid drive bay, grille kipas) jadi 2-3 piksel dan hilang. */
+  if (Dunia.node) tambah(Dunia.node, 14, 24, 42);
+  for (const l of Dunia.laptop) tambah(l, 30, 22, 37);
+  for (const k of Dunia.kluster) tambah(k, 14, 24, 42);
+  if (!titik.length) return;
+
+  /* Iteratif: projcksikan semua titik, lihat yang keluar frame, lalu
+     mundurkan kamera sampai semuanya muat. Menghitung dari proyeksi nyata
+     lebih jujur daripada menebak radius — kalau nanti ada 6 node, kamera
+     tetap pas tanpa perlu diubah manual. */
+  /* Margin kecil supaya isi kanvas penuh. Margin besar = objek terkumpul
+     di tengah dengan ruang kosong besar di segala sisi. */
+  const marginX = Kanvas.lebar * 0.035;
+  const marginY = Kanvas.tinggi * 0.05;
+
+  /* Cari SKALA terbesar yang semua objek masih muat.
+     Ortografis: skala cukup satu angka — semua objek jadi sama besar. */
+  const batasX = Kanvas.dpr * (Kanvas.lebar / 2 - marginX);
+  const batasY = Kanvas.dpr * (Kanvas.tinggi / 2 - marginY);
+
+  /* Cari skala TERBESAR yang semua objek masih muat.
+     Strategy: naikkan skala selagi masih muat. Kalau langsung dihitung sekali,
+     bisa langsung meloncat terlalu jauh; kalau diturunkan dari besar,
+     bisa langsung meloncat terlalu kecil. Jadi: naik pelan-pelan. */
+  const ukur = (sk) => {
+    Kam.skala = sk;
+    Kam.skalaEfektif = sk;
+    let palingX = 0, palingY = 0;
+    for (const t of titik) {
+      const p = proyek(t);
+      palingX = Math.max(palingX, Math.abs(p.x - Kanvas.dpr * Kanvas.lebar / 2));
+      palingY = Math.max(palingY, Math.abs(p.y - Kanvas.dpr * Kanvas.tinggi / 2));
+    }
+    return Math.max(palingX / batasX, palingY / batasY);
+  };
+
+  let skala = 0.2;
+  let langkah = 0.5;
+  for (let iter = 0; iter < 60; iter++) {
+    const lebih = ukur(skala);
+    if (lebih > 1) {
+      /* terlalu besar → mundur ke bawah skala yang tadi masih muat */
+      langkah /= 2;
+      if (langkah < 0.004) break;
+      skala = Math.max(0.05, skala * (1 - langkah));
+      continue;
+    }
+    /* masih muat → coba lebih besar */
+    const coba = skala * (1 + langkah);
+    if (ukur(coba) > 1) {
+      langkah /= 2;
+      if (langkah < 0.004) break;
+      continue;
+    }
+    skala = coba;
+  }
+  /* skala akhir: yang terbesar yang masih muat */
+  ukur(skala);
+
+  Kam.skalaIdeal = skala;
+}
+
+
+/* ======================================================================
+   MESIN RENDER 3D
+
+   Semua bentuk digambar sebagai "prism" (balok 3D) yang bisa diputar,
+   diterangi, dan diberi bayangan. Ada tiga jenis Lighting:
+     - directional (dari atas-kiri)  → menentukan sisi terang/gelap
+     - ambient                     → supaya sisi gelap tidak hitam
+     - specular                    → kilau kecil di tepi, biar terasa volumetric
+
+   Kenapa tidak pakai Three.js: lihat catatan di bagian atas file.
+   ====================================================================== */
+
+/* Vektor helper */
+const v3 = (x, y, z) => ({ x, y, z });
+const vTambah = (a, b) => v3(a.x + b.x, a.y + b.y, a.z + b.z);
+const vKali = (a, k) => v3(a.x * k, a.y * k, a.z * k);
+const vNormal = (a) => {
+  const l = Math.hypot(a.x, a.y, a.z) || 1;
+  return v3(a.x / l, a.y / l, a.z / l);
+};
+const vDot = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
+
+/* Arah cahaya utama (dari atas, sedikit dari kiri depan) */
+const CAHAYA = vNormal(v3(-0.45, 0.82, 0.36));
+
+/* Putar titik lokal (dalam ruang objek) ikut yaw objek.
+   Sudut yaw objek disimpan di o.rot (derajat). */
+function putarLokal(p, o) {
+  const a = ((o.rot || 0) * Math.PI) / 180;
+  const c = Math.cos(a), s = Math.sin(a);
+  return v3(p.x * c + p.z * s, p.y, -p.x * s + p.z * c);
+}
+
+/* Konversi titik objek → titik dunia → layar */
+function keLayar(o, pLokal) {
+  const p = putarLokal(pLokal, o);
+  return proyek(v3(o.x + p.x, o.y + p.y, o.z + p.z));
+}
+
+/* Hitung intensitas pencahayaan untuk sebuah normal (dunia). */
+function intensitas(normal) {
+  const difusa = Math.max(0, vDot(normal, CAHAYA));
+  /* ambient TINGGI — supaya sisi gelap tetap memakai warna objek yang sama
+     (bukan jadi navy/abu-abu). Kalau ambient kecil, dua server dengan
+     warna sama terlihat punya warna berbeda. */
+  const ambient = 0.68;
+  return ambient + difusa * 0.32;
+}
+
+/* Warna dasar + pencahayaan → warna terang/gelap. */
+function warnaCahaya(warna, normal, ekstra = 0) {
+  const i = intensitas(normal) + ekstra;
+  return shade(warna, i);
+}
+
+/* ----------------------------------------------------------------------
+   PRISM — balok 3D umum. Ini bentuk dasar semua objek.
+   Definisi lokal: lebar (x), tinggi (y), kedalaman (z), pusat di (0,0,0).
+   ---------------------------------------------------------------------- */
+/* Bentuk dasar: prisma (balok 3D). */
+function prisma(nama, w, h, d, x, y, z, warna, opsi = {}) {
+  return { nama, w, h, d, x, y, z, warna, ...opsi };
+}
+
+const PRISMA = {
+  /* 8 sudut, indeks:
+     0:(-w,-h,-d) 1:(+w,-h,-d) 2:(+w,+h,-d) 3:(-w,+h,-d)
+     4:(-w,-h,+d) 5:(+w,-h,+d) 6:(+w,+h,+d) 7:(-w,+h,+d) */
+  sudut: (p) => [
+    v3(-p.w, -p.h, -p.d), v3(p.w, -p.h, -p.d),
+    v3(p.w, p.h, -p.d), v3(-p.w, p.h, -p.d),
+    v3(-p.w, -p.h, p.d), v3(p.w, -p.h, p.d),
+    v3(p.w, p.h, p.d), v3(-p.w, p.h, p.d),
+  ],
+};
+
+/* Gambar satu balok dengan pencahayaan. Nilai `geser` menggeser balok
+   dalam ruang objek (untuk menyusun rack dari beberapa balok). */
+/* ----------------------------------------------------------------------
+   FACE BUFFER — pengumpulan semua sisi (face) dari semua objek.
+
+   Kenapa tidak langsung menggambar balok per balok:
+     Kalau tiap balok digambar utuh (semua 6 sisinya) lalu digambar lagi
+     balok berikutnya, objek yang berada DI DEPAN akan tertimpa — padahal
+     balok itu MAYA di belakang objek lain.
+
+     Solusinya: kumpulkan SEMUA sisi dari SEMUA objek ke satu daftar, urutkan
+     dari yang paling belakang ke paling depan (painter's algorithm), lalu
+     gambar satu per satu. Hasilnya: tidak ada satu pun sisi yang menutupi
+     sisi yang seharusnya di depannya.
+
+   Kedalaman sebuah sisi = rata-rata z dari keempat sudutnya.
+   ---------------------------------------------------------------------- */
+let FACE_BUFFER = [];
+
+/* Bounding box NYATA tiap objek, dihitung dari face yang benar-benar
+   digambar. Dipakai untukhindari label menimpa bentuknya.
+   Perkiraan radius selalu salah — sisi yang lebih dekat ke kamera lebih
+   besar, dan model punya banyak balok yang composing-nya bukan satu kotak. */
+const BBOX_OBJEK = new Map();
+
+
+/* ----------------------------------------------------------------------
+   BIDANG DATAR — persegi panjang yang berdiri tegak (bukan balok).
+   Dipakai untuk panel depan rak, layar monitor, dan bidang rata lain
+   yang harus menghadap kamera. Berbeda dari balok: tidak punya sisi
+   samping, jadi tidak perlu depth sorting — cukup satu quadrilateral.
+   ---------------------------------------------------------------------- */
+function antreBidang(o, p, warna, geser = v3(0, 0, 0)) {
+  const s = PRISMA.sudut(p);
+  /* hanya 4 sudut depan (z = +d) */
+  const idx = [3, 2, 6, 7];
+  const layar = idx.map((i) => keLayar(o, vTambah(s[i], geser)));
+  const nn = putarLokal(v3(0, 0, 1), o);
+  const kedalaman = layar.reduce((a, q) => a + q.z, 0) / layar.length;
+  FACE_BUFFER.push({ titik: layar, warna, nn, kedalaman, sisi: { normal: nn }, o });
+}
+
+/* ----------------------------------------------------------------------
+   ANTRE BALOK — kumpulkan sisi-sisi balok ke FACE_BUFFER.
+
+   Sisi yang normalnya mengarah AWAY dari kamera dilewati: sisanya tertutup
+   oleh sisi depan, jadi tidak perlu digambar (dan kalau digambar, garis
+   tepinya akan terlihat menembus bentuk lain).
+
+   Kedalaman sebuah sisi = rata-rata z dari keempat sudutnya. Ini yang
+   dipakai untuk mengurutkan seluruh face secara global.
+   ---------------------------------------------------------------------- */
+function antreBalok(ctx, o, p, warna, geser = v3(0, 0, 0), opsi = {}) {
+  const s = PRISMA.sudut(p);
+  const layar = s.map((k) => keLayar(o, vTambah(k, geser)));
+
+  const n = (a) => putarLokal(vNormal(a), o);
+  const sisiDefs = [
+    { idx: [4, 5, 6, 7], normal: v3(0, 1, 0) },    /* penapa atas */
+    { idx: [0, 1, 2, 3], normal: v3(0, -1, 0) },   /* penapa bawah */
+    { idx: [0, 1, 5, 4], normal: v3(0, 0, -1) },   /* belakang */
+    { idx: [3, 2, 6, 7], normal: v3(0, 0, 1) },    /* depan */
+    { idx: [0, 3, 7, 4], normal: v3(-1, 0, 0) },   /* kiri */
+    { idx: [1, 2, 6, 5], normal: v3(1, 0, 0) },    /* kanan */
+  ];
+
+  for (const sisi of sisiDefs) {
+    const nn = n(sisi.normal);
+    /* Sisi yang benar-benar menjauh dari kamera dilewati — tertutup sisi
+       depan. Kalau digambar, garis tepinya akan terlihat menembus. */
+    const facing = vDot(nn, arahKamera);
+    if (facing < -0.15 && !opsi.forceSemua) continue;
+
+    const titik = sisi.idx.map((i) => layar[i]);
+    const kedalaman = titik.reduce((a, q) => a + q.z, 0) / titik.length;
+    FACE_BUFFER.push({ titik, warna, nn, kedalaman, sisi, o });
+  }
+}
+
+/* Gambar semua face yang sudah dikumpulkan, dari belakang ke depan. */
+function gambarFaceBuffer(ctx) {
+  FACE_BUFFER.sort((a, b) => a.kedalaman - b.kedalaman);
+  for (const f of FACE_BUFFER) {
+    /* catat bbox asli objek ini (untuk collide check label) */
+    const key = f.o;
+    let bb = BBOX_OBJEK.get(key);
+    if (!bb) { bb = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+               BBOX_OBJEK.set(key, bb); }
+    for (const q of f.titik) {
+      if (q.x < bb.x0) bb.x0 = q.x;
+      if (q.y < bb.y0) bb.y0 = q.y;
+      if (q.x > bb.x1) bb.x1 = q.x;
+      if (q.y > bb.y1) bb.y1 = q.y;
+    }
+    ctx.beginPath();
+    f.titik.forEach((q, k) => {
+      if (k === 0) ctx.moveTo(q.x / dprG, q.y / dprG);
+      else ctx.lineTo(q.x / dprG, q.y / dprG);
+    });
+    ctx.closePath();
+    const backside = vDot(f.nn, arahKamera) <= 0;
+    ctx.fillStyle = warnaCahaya(f.warna, f.nn, backside ? -0.16 : 0);
+    ctx.fill();
+    ctx.strokeStyle = shade(f.warna, backside ? 0.95 : 1.4);
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+  }
+  FACE_BUFFER = [];
+}
+
+/* Arah pandang kamera di ruang dunia (untuk menentukan sisi mana terlihat) */
+let dprG = 1;
+const arahKamera = v3(0, 0, 1);
+
+/* ----------------------------------------------------------------------
+   BAYANGAN — elips gelap di lantai bawah objek.
+   ---------------------------------------------------------------------- */
+function gambarBayangan(ctx, o, radiusX, radiusZ, strength = 0.16) {
+  const p = proyek(v3(o.x, o.y - o.tinggiDasar, o.z));
+  const rx = radiusX * p.s;
+  const rz = radiusZ * p.s;
+  const cx = p.x / dprG, cy = p.y / dprG;
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(rx, rz));
+  g.addColorStop(0, `rgba(15,30,55,${strength})`);
+  g.addColorStop(0.6, `rgba(15,30,55,${strength * 0.45})`);
+  g.addColorStop(1, "rgba(15,30,55,0)");
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(1, Math.max(0.18, rz / Math.max(rx, 0.001)));
+  ctx.translate(-cx, -cy);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(cx, cy, Math.max(rx, rz), 0, 7);
+  ctx.fill();
+  ctx.restore();
+}
+
+
+/* ======================================================================
+   MODEL OBJEK
+
+   SERVER — rak server 2U: badan gelap, panel depan dengan garis-garis
+   slot, dan LED status yang berkedip hidup. Berdiri di atas "feet".
+   Tidak pakai gambar eksternal: bentuknya dibangun dari balok 3D supaya
+   tajam di ukuran berapa pun dan jalan tanpa internet.
+
+   PC — monitor di atas dudukan + tower di samping + papan ketik.
+   ====================================================================== */
+
+function gambarServer(ctx, o, skala, hidup, warnaDasar, detailTunda) {
+  const s = skala;
+  /* ==================================================================
+     SERVER — rak 2U rack-mount (unit horizontal, tapi BERKEBALLAN).
+
+     Kenapa 2U horizontal, bukan lemari tegak:
+       - Grid drive bays di muka itu lambang server yang paling dikenali
+         orang — jauh lebih cepat terbaca daripada lemari rak tegak.
+       - Lemari tegak gampang tertukar dengan tower PC.
+       - Bentuk horizontal + halaman depan + sisi = jelas "rak".
+
+     Proporsi: lebar > tinggi, kedalaman nyata supaya terbaca 3D.
+     ================================================================== */
+  const W = 22;      /* setengah lebar  */
+  const H = 6.2;     /* setengah tinggi */
+  const D = 9.5;     /* setengah kedalaman */
+
+  gambarBayangan(ctx, o, 40 * s, 26 * s, 0.24);
+
+  /* badan unit 2U */
+  antreBalok(ctx, o, { w: W, h: H, d: D }, warnaDasar, v3(0, 0, 0));
+
+  /* Muka depan (panel bezel, lebih gelap).
+     Z-nya dihitung supaya permukaannya menghadap kamera — pitch negatif
+     membalik sumbu z, jadi "dekat kamera" berarti z LEBIH KECIL. */
+  antreBalok(ctx, o, { w: W * .97, h: H * .88, d: 0.6 },
+             shade(warnaDasar, .50), v3(0, 0, (D - 0.4) * s));
+
+  /* ------------------------------------------------------------------
+     DETAIL — closure supaya tidak tertutup balok lain
+     ------------------------------------------------------------------ */
+  if (detailTunda) {
+    detailTunda.push(() => {
+      /* Grid HARUS di depan permukaan panel muka.
+         Muka = balok d=0.6 di z=(D-0.4)*s → permukaannya di z=(D-0.1)*s.
+         Grid dikasih z yang lebih besar supaya menutupi mukanya, bukan
+         sebaliknya. (z lebih besar = lebih dekat kamera.) */
+      const zP = (D + 0.5) * s;
+
+      /* === GRID DRIVE BAYS: 6 kolom x 2 baris.
+             Digambar sebagai QUAD (4 titik) yang mengikuti muka server,
+             bukan fillRect — supaya ikut perspektif dan terbaca sebagai
+             grid yang menempel di muka, bukan kotak-kotak lepas. === */
+      /* 4 kolom x 2 baris, UKURAN BESAR. Grid 6x2 terlalu rapat — di
+         skala peta tiap bay cuma 2-3 piksel dan hilang. */
+      const kolom = 4, baris = 2;
+      const wBay = W * .78, hBay = H * .74;
+      const lebarBay = wBay / kolom;
+      const tinggiBay = hBay / baris;
+      for (let b = 0; b < baris; b++) {
+        for (let k = 0; k < kolom; k++) {
+          const x0 = (-wBay / 2 + k * lebarBay) * s;
+          const x1 = (-wBay / 2 + (k + 1) * lebarBay) * s;
+          const y0 = (hBay / 2 - (b + 1) * tinggiBay) * s;
+          const y1 = (hBay / 2 - b * tinggiBay) * s;
+          /* Grid digambar DI BIDANG MUKA server (z = zP), lalu diproyeksikan.
+             Kalau z-nya lain, quad-nya bergeser dari muka dan terbaca
+             sebagai bentuk yang melayang, bukan slot di panel. */
+          const q = [
+            keLayar(o, v3(x0, y0, zP)), keLayar(o, v3(x1, y0, zP)),
+            keLayar(o, v3(x1, y1, zP)), keLayar(o, v3(x0, y1, zP)),
+          ];
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(q[0].x / dprG, q[0].y / dprG);
+          for (let i = 1; i < 4; i++) ctx.lineTo(q[i].x / dprG, q[i].y / dprG);
+          ctx.closePath();
+          /* Rongga bay — gelap, kontras jelas dengan panel */
+          ctx.fillStyle = shade(warnaDasar, .12);
+          ctx.fill();
+          /* TEPAT ATAS bay: garis terang = sisi atas slot HDD.
+             Garis terang + rongga gelap = unmistakable "grid slot". */
+          ctx.strokeStyle = shade(warnaDasar, 2.15);
+          ctx.lineWidth = Math.max(1.6, 2.6 * s);
+          ctx.beginPath();
+          ctx.moveTo(q[0].x / dprG, q[0].y / dprG);
+          ctx.lineTo(q[1].x / dprG, q[1].y / dprG);
+          ctx.stroke();
+          /* tepi bawah bay */
+          ctx.strokeStyle = shade(warnaDasar, .85);
+          ctx.lineWidth = Math.max(1.2, 1.7 * s);
+          ctx.beginPath();
+          ctx.moveTo(q[3].x / dprG, q[3].y / dprG);
+          ctx.lineTo(q[2].x / dprG, q[2].y / dprG);
+          ctx.stroke();
+          /* pemisah vertikal antar kolom */
+          ctx.strokeStyle = shade(warnaDasar, .78);
+          ctx.lineWidth = Math.max(0.8, 1.1 * s);
+          ctx.beginPath();
+          ctx.moveTo(q[1].x / dprG, q[1].y / dprG);
+          ctx.lineTo(q[2].x / dprG, q[2].y / dprG);
+          ctx.stroke();
+          /* tombol eject kecil di kanan bawah bay */
+          const pe = keLayar(o, v3((x1 - lebarBay * .22) * s, (y1 + tinggiBay * .22) * s, zP + 0.2 * s));
+          ctx.fillStyle = shade(warnaDasar, 1.9);
+          ctx.fillRect(pe.x / dprG - 1.1 * s, pe.y / dprG - 0.8 * s, 2.2 * s, 1.6 * s);
+          ctx.restore();
+        }
+      }
+
+      /* === HANDLE di kiri & kanan muka === */
+      for (const dx of [-W * .92, W * .92]) {
+        const ph = keLayar(o, v3(dx * s, 0, zP));
+        ctx.save();
+        ctx.fillStyle = shade(warnaDasar, 1.42);
+        ctx.fillRect(ph.x / dprG - 2.0 * s, ph.y / dprG - H * .62 * s,
+                     4.0 * s, H * 1.24 * s);
+        ctx.strokeStyle = shade(warnaDasar, 1.5);
+        ctx.lineWidth = 0.8;
+        ctx.strokeRect(ph.x / dprG - 2.0 * s, ph.y / dprG - H * .62 * s,
+                       4.0 * s, H * 1.24 * s);
+        ctx.restore();
+      }
+
+      /* === TOMBOL POWER + LED status di pojok kanan bawah === */
+      const pp = keLayar(o, v3(W * .74 * s, -H * .62 * s, zP));
+      ctx.save();
+      ctx.fillStyle = shade(warnaDasar, .40);
+      ctx.beginPath();
+      ctx.arc(pp.x / dprG, pp.y / dprG, Math.max(1.3, 2.1 * s), 0, 7);
+      ctx.fill();
+      ctx.strokeStyle = shade(warnaDasar, 1.6);
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      ctx.restore();
+
+      const led = hidup ? warnaTema("--hidup", "#16a34a")
+                       : warnaTema("--mati", "#dc2626");
+      const kedip = hidup ? (0.5 + 0.5 * Math.sin(performance.now() / 620)) : 1;
+      for (let i = 0; i < 3; i++) {
+        const pl = keLayar(o, v3((W * .50 - i * 3.4) * s, -H * .62 * s, zP + 0.2 * s));
+        ctx.save();
+        ctx.globalAlpha = 0.45 + 0.55 * kedip;
+        ctx.fillStyle = led;
+        ctx.shadowColor = led;
+        ctx.shadowBlur = 9 * s;
+        ctx.beginPath();
+        ctx.arc(pl.x / dprG, pl.y / dprG, Math.max(1.2, 1.9 * s), 0, 7);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      /* === VENTILASI tutup atas (garis-garis tipis) === */
+      ctx.save();
+      ctx.strokeStyle = shade(warnaDasar, 1.5);
+      ctx.lineWidth = 0.8;
+      for (let i = -2; i <= 2; i++) {
+        const p1 = keLayar(o, v3(-W * .6 * s, (H + 0.15) * s, i * 3.6 * s));
+        const p2 = keLayar(o, v3(W * .6 * s, (H + 0.15) * s, i * 3.6 * s));
+        ctx.beginPath();
+        ctx.moveTo(p1.x / dprG, p1.y / dprG);
+        ctx.lineTo(p2.x / dprG, p2.y / dprG);
+        ctx.stroke();
+      }
+      ctx.restore();
+    });
+  }
+}
+/* ---------------------------------------------------------------------- */
+function gambarPC(ctx, o, skala, hidup, warnaDasar, detailTunda) {
+  const s = skala;
+
+  gambarBayangan(ctx, o, 40 * s, 26 * s, 0.16);
+
+  /* ==================================================================
+     TOWER — di kiri, BERDIRI tegak. Proporsi sungguhan:
+     tinggi ~2× lebar. Berbeda dari server lewat GRILLE KIPAS di muka
+     (server punya grid drive bay, PC punya kipas) — itu yang bikin
+     keduanya tidak tertukar.
+     ================================================================== */
+  const TX = -15, TY = -2, TW = 4.8, TH = 9.6, TD = 4.8;
+  antreBalok(ctx, o, { w: TW, h: TH, d: TD }, shade(warnaDasar, .80),
+             v3(TX * s, TY * s, 0));
+
+  /* ==================================================================
+     MONITOR — di kanan, layar lebar, berdiri di atas dudukan
+     ================================================================== */
+  const MX = 8.5, MY = 8.5;
+  const MW = 11.5, MH = 7.0;      /* setengah lebar & tinggi monitor */
+
+  /* dudukan (batang) + alas (kaki lebar) */
+  antreBalok(ctx, o, { w: 1.5, h: 3.0, d: 1.4 }, shade(warnaDasar, .60),
+             v3(MX * s, -1.5 * s, 0));
+  antreBalok(ctx, o, { w: 4.6, h: 0.7, d: 3.0 }, shade(warnaDasar, .66),
+             v3(MX * s, -4.4 * s, 0));
+
+  /* badan monitor (bingkai gelap) */
+  antreBalok(ctx, o, { w: MW, h: MH, d: 0.7 }, shade(warnaDasar, .48),
+             v3(MX * s, MY * s, 0));
+
+  /* ==================================================================
+     KEYBOARD — lebar, rata di depan
+     ================================================================== */
+  const KX = 8, KY = -9.0, KZ = 12;
+  antreBalok(ctx, o, { w: 8.0, h: 0.45, d: 3.0 }, shade(warnaDasar, .72),
+             v3(KX * s, KY * s, KZ * s));
+
+  /* ------------------------------------------------------------------
+     DETAIL — closure supaya tidak tertutup balok lain
+     ------------------------------------------------------------------ */
+  if (detailTunda) {
+    detailTunda.push(() => {
+      /* === LAYAR MONITOR (bukan balok — digambar di atas) === */
+      const zL = 0.9 * s;
+      const q = [
+        v3((MX - MW * .92) * s, (MY + MH * .86) * s, zL),
+        v3((MX + MW * .92) * s, (MY + MH * .86) * s, zL),
+        v3((MX + MW * .92) * s, (MY - MH * .86) * s, zL),
+        v3((MX - MW * .92) * s, (MY - MH * .86) * s, zL),
+      ].map((p) => keLayar(o, p));
+
+      const grad = ctx.createLinearGradient(q[0].x / dprG, q[0].y / dprG,
+                                           q[2].x / dprG, q[2].y / dprG);
+      if (hidup) {
+        grad.addColorStop(0, shade(warnaDasar, 1.35));
+        grad.addColorStop(.5, shade(warnaDasar, 1.00));
+        grad.addColorStop(1, shade(warnaDasar, .70));
+      } else {
+        grad.addColorStop(0, shade(warnaDasar, .38));
+        grad.addColorStop(1, shade(warnaDasar, .24));
+      }
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(q[0].x / dprG, q[0].y / dprG);
+      for (let i = 1; i < 4; i++) ctx.lineTo(q[i].x / dprG, q[i].y / dprG);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.strokeStyle = shade(warnaDasar, 1.5);
+      ctx.lineWidth = 0.9;
+      ctx.stroke();
+      ctx.restore();
+
+      /* pantulan diagonal di layar */
+      if (hidup) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(q[0].x / dprG, q[0].y / dprG);
+        for (let i = 1; i < 4; i++) ctx.lineTo(q[i].x / dprG, q[i].y / dprG);
+        ctx.closePath();
+        ctx.clip();
+        const gl = ctx.createLinearGradient(q[0].x / dprG, q[0].y / dprG,
+                                            q[1].x / dprG, q[3].y / dprG);
+        gl.addColorStop(0, "rgba(255,255,255,.30)");
+        gl.addColorStop(.42, "rgba(255,255,255,.02)");
+        gl.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = gl;
+        ctx.fillRect(0, 0, Kanvas.lebar, Kanvas.tinggi);
+        ctx.restore();
+      }
+
+      /* === ISI LAYAR: baris-baris "teks" (tampak seperti terminal/chat).
+             Layar polos hanya terbaca sebagai panel biru; baris teks
+             membuatnya langsung terbaca sebagai layar komputer. === */
+      if (hidup) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(q[0].x / dprG, q[0].y / dprG);
+        for (let i = 1; i < 4; i++) ctx.lineTo(q[i].x / dprG, q[i].y / dprG);
+        ctx.closePath();
+        ctx.clip();
+        const lx0 = Math.min(q[0].x, q[1].x, q[2].x, q[3].x) / dprG;
+        const lx1 = Math.max(q[0].x, q[1].x, q[2].x, q[3].x) / dprG;
+        const ly0 = Math.min(q[0].y, q[1].y, q[2].y, q[3].y) / dprG;
+        const ly1 = Math.max(q[0].y, q[1].y, q[2].y, q[3].y) / dprG;
+        const tinggiBaris = (ly1 - ly0) * 0.13;
+        /* baris 1-2 = "header" (lebih terang), sisanya lebih redup */
+        for (let b = 0; b < 5; b++) {
+          const yb = ly0 + tinggiBaris * (1.1 + b * 1.15);
+          if (yb > ly1) break;
+          ctx.fillStyle = b === 0 ? "rgba(255,255,255,.62)"
+                                 : "rgba(255,255,255," + (0.40 - b * 0.05) + ")";
+          const lebarBaris = (lx1 - lx0) * (b === 0 ? 0.52 : 0.30 + (b % 3) * 0.11);
+          ctx.fillRect(lx0 + (lx1 - lx0) * 0.08, yb, lebarBaris, Math.max(1, tinggiBaris * 0.42));
+        }
+        ctx.restore();
+      }
+
+      /* === GRILLE KIPAS di muka tower (ciri PC desktop) === */
+      const pFan = keLayar(o, v3(TX * s, (TY + TH * .18) * s, (TD + 0.35) * s));
+      const rFan = Math.max(2.2, 3.6 * s);
+      ctx.save();
+      /* cincin luar kipas */
+      ctx.strokeStyle = shade(warnaDasar, .40);
+      ctx.lineWidth = Math.max(1, 1.4 * s);
+      ctx.beginPath();
+      ctx.arc(pFan.x / dprG, pFan.y / dprG, rFan, 0, 7);
+      ctx.stroke();
+      /* 4 bilah kipas */
+      ctx.fillStyle = shade(warnaDasar, .52);
+      for (let b = 0; b < 4; b++) {
+        const a = (b / 4) * Math.PI * 2 + 0.4;
+        ctx.beginPath();
+        ctx.ellipse(pFan.x / dprG + Math.cos(a) * rFan * .38,
+                    pFan.y / dprG + Math.sin(a) * rFan * .38,
+                    rFan * .42, rFan * .16, a, 0, 7);
+        ctx.fill();
+      }
+      /* poros kipas */
+      ctx.fillStyle = shade(warnaDasar, .38);
+      ctx.beginPath();
+      ctx.arc(pFan.x / dprG, pFan.y / dprG, rFan * .2, 0, 7);
+      ctx.fill();
+      ctx.restore();
+
+      /* === MUKA TOWER: 2 slot drive + tombol power + LED === */
+      const zT = TD + 0.25 * s;
+      for (let i = 0; i < 2; i++) {
+        const pd = keLayar(o, v3(TX * s, (TY - TH * .34 - i * 2.4) * s, zT));
+        ctx.save();
+        ctx.fillStyle = shade(warnaDasar, .40);
+        ctx.fillRect(pd.x / dprG - 2.6 * s, pd.y / dprG - 0.9 * s, 5.2 * s, 1.8 * s);
+        ctx.strokeStyle = shade(warnaDasar, 1.4);
+        ctx.lineWidth = 0.6;
+        ctx.strokeRect(pd.x / dprG - 2.6 * s, pd.y / dprG - 0.9 * s, 5.2 * s, 1.8 * s);
+        ctx.restore();
+      }
+
+      /* tombol power (lingkaran) */
+      const pp = keLayar(o, v3(TX * s, (TY - TH * .66) * s, zT));
+      ctx.save();
+      ctx.fillStyle = shade(warnaDasar, .42);
+      ctx.beginPath();
+      ctx.arc(pp.x / dprG, pp.y / dprG, Math.max(1.1, 1.7 * s), 0, 7);
+      ctx.fill();
+      ctx.strokeStyle = shade(warnaDasar, 1.5);
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+      ctx.restore();
+
+      /* LED power */
+      const led = hidup ? warnaTema("--hidup", "#16a34a")
+                       : warnaTema("--mati", "#dc2626");
+      const pl = keLayar(o, v3((TX + 2.2) * s, (TY - TH * .66) * s, zT + 0.2 * s));
+      ctx.save();
+      ctx.fillStyle = led;
+      ctx.shadowColor = led;
+      ctx.shadowBlur = 7 * s;
+      ctx.beginPath();
+      ctx.arc(pl.x / dprG, pl.y / dprG, Math.max(0.9, 1.3 * s), 0, 7);
+      ctx.fill();
+      ctx.restore();
+
+      /* === TOMBOL KEYBOARD (4 baris x 12 kolom, pas di dalam slab) === */
+      ctx.save();
+      ctx.fillStyle = shade(warnaDasar, .46);
+      const kx0 = KX - 6.8, kz0 = KZ - 1.15;
+      for (let baris = 0; baris < 4; baris++) {
+        for (let kolom = 0; kolom < 12; kolom++) {
+          const pk = keLayar(o, v3((kx0 + kolom * 1.18) * s,
+                                   (KY + 0.62) * s,
+                                   (kz0 + baris * 0.78) * s));
+          const r = Math.max(0.42, 0.52 * s);
+          ctx.beginPath();
+          ctx.arc(pk.x / dprG, pk.y / dprG, r, 0, 7);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+
+      /* === MOUSE === */
+      const pm = keLayar(o, v3((KX + 10.6) * s, (KY + 0.4) * s, (KZ + 0.2) * s));
+      ctx.save();
+      ctx.fillStyle = shade(warnaDasar, .70);
+      ctx.beginPath();
+      ctx.ellipse(pm.x / dprG, pm.y / dprG, Math.max(1.4, 2.1 * s),
+                  Math.max(1.0, 1.5 * s), 0, 0, 7);
+      ctx.fill();
+      ctx.strokeStyle = shade(warnaDasar, 1.4);
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+      ctx.restore();
+    });
+  }
+}
+
+/* ======================================================================
+   GAMBAR
+   ====================================================================== */
+function warnaTema(nama, bawaan) {
+  const w = ambilWarna(nama);
+  return w || bawaan;
+}
+
+function gambar3d(waktu) {
+  const ctx = Kanvas.ctx;
+  if (!ctx) return;
+  const dpr = Kanvas.dpr;
+  dprG = dpr;
+  FACE_BUFFER = [];
+  BBOX_OBJEK.clear();
+
+  /* Arah pandang kamera di ruang dunia — menentukan sisi balok mana yang
+     menghadap kamera. Untuk ortografis, arahnya tetap (tidak bergantung
+     jarak), hanya ikut rotasi yaw. */
+  const cy = Math.cos(Kam.yaw), sy = Math.sin(Kam.yaw);
+  arahKamera.x = -sy;
+  arahKamera.y = 0;
+  arahKamera.z = cy;
+
+  /* skala efektif = skala ideal (semua objek muat) x zoom manual */
+  Kam.skalaEfektif = (Kam.skalaIdeal || 1) * (Kam.zoom || 1);
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, Kanvas.lebar * dpr, Kanvas.tinggi * dpr);
+  ctx.scale(dpr, dpr);
+  /* Isi latar — tanpa ini, hasil ekspor PNG transparan dan terlihat hitam
+     di program pengolah gambar, padahal dashboard-nya mode terang. */
+  ctx.fillStyle = warnaTema("--kanvas-2", "#e2e8f0");
+  ctx.fillRect(0, 0, Kanvas.lebar, Kanvas.tinggi);
+
+  /* CATATAN SOAL UKURAN:
+     Skala di layar = focal / jarak. Karena jarak kamera dihitung agar
+     titik-titik TITIK OBJek (pusat) muat, ukuran model di layar ditentukan
+     oleh perbandingan ukuran model : radius cincin — bukan oleh jarak.
+
+     Jadi untuk membesarkan objek, yang harus diperbesar adalah MODEL-nya,
+     bukan cincinnya. Memperbesar cincin justru membuat objek makin kecil. */
+
+  const w = Kanvas.lebar, h = Kanvas.tinggi;
+  const cTcp = warnaTema("--tcp", "#2563eb");
+  const cUdp = warnaTema("--udp", "#7c3aed");
+  const cHidup = warnaTema("--hidup", "#16a34a");
+  const cMati = warnaTema("--mati", "#dc2626");
+  const cTinta = warnaTema("--tinta", "#16202f");
+  const cTinta3 = warnaTema("--tinta-3", "#8794ab");
+  const cGaris = warnaTema("--garis-kuat", "rgba(15,35,70,.16)");
+  const cKabel = warnaTema("--tinta-3", "#8794ab");
+
+  /* Lantai: TIDAK ada guide elips. Tanpa legenda, elips cuma menambah
+     garis yang tidak menjelaskan apa-apa — dan lingkaran besar itu
+     sering disalahartikan sebagai bagian dari topologi. */
+
+  /* ---- kabel: node → laptop, node → node kluster ---- */
+  const kabel = [];
+  if (Dunia.node) {
+    Dunia.laptop.forEach((l) => kabel.push({ a: Dunia.node, b: l, jenis: "laptop" }));
+    Dunia.kluster.forEach((k) => kabel.push({ a: Dunia.node, b: k, jenis: "kluster" }));
+    /* antar node kluster (mesh) */
+    for (let i = 0; i < Dunia.kluster.length; i++) {
+      for (let j = i + 1; j < Dunia.kluster.length; j++) {
+        kabel.push({ a: Dunia.kluster[i], b: Dunia.kluster[j], jenis: "mesh" });
+      }
+    }
+  }
+
+  /* ---- kumpulkan semua objek (belum digambar) ---- */
+  const objek = [];
+  if (Dunia.node) objek.push({ jenis: "node", o: Dunia.node });
+  Dunia.laptop.forEach((o) => objek.push({ jenis: "laptop", o }));
+  Dunia.kluster.forEach((o) => objek.push({ jenis: "kluster", o }));
+
+  /* ==================================================================
+     URUTAN GAMBAR (penting — ini yang bikin rapi):
+
+       1. lantai (guide elips)
+       2. kabel
+       3. SEMUA sisi objek dikumpulkan ke FACE_BUFFER
+       4. FACE_BUFFER diurutkan dari belakang ke depan, lalu digambar
+       5. detail kecil (LED, port, keyboard) digambar di atas
+       6. label
+
+     langkah 3–4 yang penting: kalau tiap objek digambar utuh satu-satu,
+     objek di belakang akan tertutup objek di depan, meskipun sebenarnya
+     tidak berdekatan. Dengan satu daftar global, tidak ada yang salah tertimpa.
+     ================================================================== */
+  ctx.save();
+  for (const k of kabel) {
+    const pa = proyek(k.a), pb = proyek(k.b);
+    const kedalaman = (pa.z + pb.z) / 2;
+    const fade = Math.max(.35, Math.min(.95, 1 - kedalaman / 1400));
+    ctx.strokeStyle = cKabel;
+    ctx.globalAlpha = k.jenis === "mesh" ? fade * .55 : 1;
+    ctx.lineWidth = k.jenis === "mesh" ? 1.6 : 2.8;
+    ctx.beginPath();
+    ctx.moveTo(pa.x / dpr, pa.y / dpr);
+    ctx.lineTo(pb.x / dpr, pb.y / dpr);
+    ctx.stroke();
+
+    /* Panah di ujung jauh dari server — arah aliran (server → tujuan) */
+    if (k.jenis !== "mesh") {
+      const ax = pa.x / dpr, ay = pa.y / dpr;
+      const bx = pb.x / dpr, by = pb.y / dpr;
+      const dx = bx - ax, dy = by - ay;
+      const len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len, uy = dy / len;
+      /* berhenti 6px sebelum ujung, biar tidak menutupi bentuk */
+      const ex = bx - ux * 7, ey = by - uy * 7;
+      const ukuran = 7;
+      ctx.beginPath();
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - ux * ukuran - uy * ukuran * .55,
+                 ey - uy * ukuran + ux * ukuran * .55);
+      ctx.lineTo(ex - ux * ukuran + uy * ukuran * .55,
+                 ey - uy * ukuran - ux * ukuran * .55);
+      ctx.closePath();
+      ctx.fillStyle = cKabel;
+      ctx.globalAlpha = Math.min(.95, fade);
+      ctx.fill();
+    }
+
+    /* titik target di kedua ujung — kecil dan tanpa glow, supaya tidak
+       disalahartikan sebagai paket yang sedang bergerak. */
+    ctx.globalAlpha = Math.min(.9, fade);
+    ctx.fillStyle = cKabel;
+    for (const p of [pa, pb]) {
+      ctx.beginPath();
+      ctx.arc(p.x / dpr, p.y / dpr, k.jenis === "mesh" ? 1.6 : 2, 0, 7);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+
+  /* ---- paket yang sedang berjalan ---- */
+  for (const pk of Dunia.paket) {
+    const a = pk.dari, b = pk.ke;
+    const t = pk.t;
+    /* posisi linear di ruang 3D, dengan sedikit lengkung ke atas */
+    const x = a.x + (b.x - a.x) * t;
+    const z = a.z + (b.z - a.z) * t;
+    const y = a.y + (b.y - a.y) * t + Math.sin(t * Math.PI) * 26;
+    const p = proyek({ x, y, z });
+    const px = p.x / dpr, py = p.y / dpr;
+
+    /* ekor: 5 titik sebelumnya */
+    for (let i = 1; i <= 5; i++) {
+      const tt = Math.max(0, t - i * 0.035);
+      const xx = a.x + (b.x - a.x) * tt;
+      const zz = a.z + (b.z - a.z) * tt;
+      const yy = a.y + (b.y - a.y) * tt + Math.sin(tt * Math.PI) * 26;
+      const q = proyek({ x: xx, y: yy, z: zz });
+      ctx.beginPath();
+      ctx.fillStyle = pk.warna;
+      ctx.globalAlpha = .3 * (1 - i / 6);
+      ctx.arc(q.x / dpr, q.y / dpr, Math.max(1, 3.4 * (1 - i / 7) * p.s / dpr), 0, 7);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.fillStyle = pk.warna;
+    ctx.shadowColor = pk.warna;
+    ctx.shadowBlur = 14;
+    ctx.arc(px, py, Math.max(2.4, 5 * p.s / dpr), 0, 7);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  /* ---- objek: DIANTRE dulu (semua sisi terkumpul), baru digambar ---- */
+  const labelTunda = [];
+  const detailTunda = [];
+
+  /* skala sekarang seragam (proyeksi ortografis) — tidak ada lagi faktor
+     Perspective yang membuat objek jauh jadi kecil. */
+  const skala = 1;
+
+  for (const { jenis, o } of objek) {
+    const p = proyek(o);
+    const px = p.x / dpr, py = p.y / dpr;
+
+    if (jenis === "node") {
+      /* rak server 2U */
+      /* Node utama (server kita) digambar sedikit lebih besar dari node
+         kluster lain — dia pusat topologi, jadi wajar lebih menonjol. */
+      gambarServer(ctx, o, SKALA_MODEL * 1.12, true, cTcp, detailTunda);
+      /* Label di KANAN ATAS — kalau tepat di atas, labelnya menutupi badan
+         server itu sendiri. */
+      const pLbl = keLayar(o, v3(44 * SKALA_MODEL, 30, 0));
+      labelTunda.push({ x: pLbl.x / dpr, y: pLbl.y / dpr,
+                        teks: "SERVER " + o.nama,
+                        warna: cTcp, besar: true, asal: { x: px, y: py } });
+    } else if (jenis === "kluster") {
+      /* Node kluster lain juga rak server, ukuran lebih kecil.
+         WARNA SAMA dengan node utama — warna objek menunjukkan JENIS
+         (server vs PC), bukan status. Status hidup/mati dibedakan oleh LED
+         di panel dan badge di label. */
+      /* Ukuran SAMA dengan node utama — dua server harus kelihatan
+         sekelas, cuma posisinya yang berbeda. */
+      gambarServer(ctx, o, SKALA_MODEL, o.hidup, cTcp, detailTunda);
+      /* Label node kluster di SAMPAING (kanan) — kalau di bawah, jaraknya
+         bisa melintasi PC yang ada di bawahnya. */
+      const pLabel = keLayar(o, v3(46 * SKALA_MODEL, -14, 0));
+      labelTunda.push({ x: pLabel.x / dpr, y: pLabel.y / dpr,
+                        teks: "SERVER " + o.nama + (o.hidup ? "" : " (mati)"),
+                        warna: o.hidup ? cTcp : cMati, besar: false,
+                        asal: { x: px, y: py } });
+    } else {
+      /* PC: monitor + tower + keyboard */
+      gambarPC(ctx, o, SKALA_MODEL, o.hidup, cTcp, detailTunda);
+      const pBawahL = proyek({ x: o.x, y: -74, z: o.z });
+      /* label PC DI BAWAH ikon, jaraknya pendek — kalau jauh, garis
+         penunjuknya melintasi objek lain dan labelnya ambigu. */
+      labelTunda.push({ x: px, y: (pBawahL.y / dpr) + 16,
+                        teks: o.nama + (o.hidup ? "" : " (mati)"),
+                        warna: o.hidup ? cTcp : cMati, besar: false,
+                        asal: { x: px, y: py } });
+    }
+  }
+
+  /* ==================================================================
+     GAMBAR SEMUA FACE — diurutkan dari belakang ke depan.
+     Ini inti dari O'Reilly rapi: satu daftar global, bukan tiap objek
+     digambar utuh bergantian.
+     ================================================================== */
+  gambarFaceBuffer(ctx);
+
+  /* Detail kecil (LED, port, slot, keyboard) digambar setelah face buffer,
+     jadi tidak pernah tertutup balok lain. */
+  for (const d of detailTunda) d();
+
+  /* Label digambar TERAKHIR, di atas semua bentuk. Posisi tiap label
+     DIHINDARKAN dari bentuk node lain dan dari label lain — kalau tidak,
+     label bisa menutupi node yang bukan miliknya (label "PC05" menutupi
+     node server "n2"). Ini dihitung dari kotak yang benar-benar dipakai,
+     bukan dari perkiraan. */
+  /* Kotak tabrakan diambil dari bbox NYATA objek (dihitung saat face
+     digambar), bukan dari perkiraan. Perkiraan selalu terlalu kecil untuk
+     model majemuk seperti PC — monitor + tower + keyboard. */
+  const kotakNode = [];
+  const marginNode = 4;
+  for (const { jenis, o } of objek) {
+    const bb = BBOX_OBJEK.get(o);
+    if (!bb) continue;
+    const x = bb.x0 / dpr - marginNode;
+    const y = bb.y0 / dpr - marginNode;
+    const w = (bb.x1 - bb.x0) / dpr + marginNode * 2;
+    const h = (bb.y1 - bb.y0) / dpr + marginNode * 2;
+    kotakNode.push({ x, y, w, h });
+  }
+
+  for (const L of labelTunda) {
+    const kotak = kotakLabel(ctx, L.x, L.y, L.teks, L.besar);
+    /* Urutan arah: BAWAH dulu (label orang Ideally di bawah ikonnya),
+       lalu SAMPING, lalu ATAS. */
+    const arah = [[0,1],[0,0],[1,0],[-1,0],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1],
+                  [0,2],[2,0],[-2,0],[0,-2],[2,1],[-2,1],[2,-1],[-2,-1],
+                  [0,3],[3,0],[-3,0],[0,-3],[0,4],[4,0],[-4,0],[0,-4]];
+    let terbaik = null;
+    for (const [dx, dy] of arah) {
+      const kandidat = { x: kotak.x + dx * 26, y: kotak.y + dy * 20,
+                         w: kotak.w, h: kotak.h };
+      /* Tabrakan dengan bentuk node — termasuk juga node sendiri.
+         Kalau label boleh menutupi node asalnya, hasilnya label menempel
+         di atas server dan menutupi detailnya. */
+      const tabrakNode = kotakNode.some((n) =>
+        kandidat.x < n.x + n.w && kandidat.x + kandidat.w > n.x &&
+        kandidat.y < n.y + n.h && kandidat.y + kandidat.h > n.y);
+      const tabrakLabel = labelTunda.some((M) => {
+        if (M === L) return false;
+        const km = kotakLabel(ctx, M.x, M.y, M.teks, M.besar);
+        return kandidat.x < km.x + km.w && kandidat.x + kandidat.w > km.x &&
+               kandidat.y < km.y + km.h && kandidat.y + kandidat.h > km.y;
+      });
+      if (!tabrakNode && !tabrakLabel) { terbaik = kandidat; break; }
+    }
+    if (terbaik) {
+      L.x = terbaik.x + terbaik.w / 2;
+      L.y = terbaik.y + terbaik.h / 2;
+    }
+  }
+
+  for (const L of labelTunda) {
+    /* Leader line bentuk ELBOW (zig-zag): turun dari node, lalu mendatar
+       ke label. Garis lurus dari node ke label bisa memotong objek lain di
+       tengah jalan — dan pembaca lalu mengira label itu milik objek yang
+       dipotong, bukan objek asalnya. */
+    if (L.asal) {
+      ctx.save();
+      ctx.strokeStyle = shade(L.warna, .8);
+      ctx.globalAlpha = .85;
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(L.asal.x, L.asal.y);
+      if (Math.abs(L.x - L.asal.x) > 26 && L.y > L.asal.y) {
+        /* elbow: turun dulu, lalu mendatar */
+        const tengah = L.y - (L.y - L.asal.y) * 0.35;
+        ctx.lineTo(L.asal.x, tengah);
+        ctx.lineTo(L.x, tengah);
+        ctx.lineTo(L.x, L.y);
+      } else {
+        ctx.lineTo(L.x, L.y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+    labelKartu(ctx, L.x, L.y, L.teks, L.warna, L.besar, dpr);
+  }
+
+  /* ---- peta: tidak ada tombol; seluruh kontrol lewat seret & gulir ---- */
+  ctx.restore?.();
+}
+
+/* (bBox kubus tidak dipakai lagi — bbox dihitung dari face asli) */
+function bboxKubusTidakDipakai(o, sisi) {
+  const p = proyek(o);
+  const s = sisi * Math.max(.55, p.s / (Kanvas.dpr || 1));
+  const titik = [
+    { x: o.x - s, y: o.y - s, z: o.z - s },
+    { x: o.x + s, y: o.y - s, z: o.z - s },
+    { x: o.x + s, y: o.y + s, z: o.z - s },
+    { x: o.x - s, y: o.y + s, z: o.z - s },
+    { x: o.x - s, y: o.y - s, z: o.z + s },
+    { x: o.x + s, y: o.y - s, z: o.z + s },
+    { x: o.x + s, y: o.y + s, z: o.z + s },
+    { x: o.x - s, y: o.y + s, z: o.z + s },
+  ].map(proyek);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of titik) {
+    x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y);
+    x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y);
+  }
+  const d = Kanvas.dpr || 1;
+  return { x: x0 / d, y: y0 / d, w: (x1 - x0) / d, h: (y1 - y0) / d };
+}
+
+/* Kubus 3D — tiga sisi yang benar-benar menghadap kamera.
+   Intensitas tiap sisi dibedakan supaya bentuknya terbaca sebagai
+   volume, bukan dua bidang datar yang menumpuk:
+     - penapa atas  : paling terang (cahaya dari atas)
+     - sisi kiri    : paling gelap  (belum terkena cahaya)
+     - sisi kanan   : sedang       (cahaya menyamping)
+   Sudut mana yang terlihat ditentukan dari yaw kamera, jadi kubus tetap
+   "solid" ketika diputar. */
+function gambarKubus(ctx, o, sisi, warna, px, py, skala, warnaTengah) {
+  const s = sisi * skala;
+  const titik = [
+    { x: o.x - s, y: o.y - s, z: o.z - s },   /* 0 */
+    { x: o.x + s, y: o.y - s, z: o.z - s },   /* 1 */
+    { x: o.x + s, y: o.y + s, z: o.z - s },   /* 2 */
+    { x: o.x - s, y: o.y + s, z: o.z - s },   /* 3 */
+    { x: o.x - s, y: o.y - s, z: o.z + s },   /* 4 */
+    { x: o.x + s, y: o.y - s, z: o.z + s },   /* 5 */
+    { x: o.x + s, y: o.y + s, z: o.z + s },   /* 6 */
+    { x: o.x - s, y: o.y + s, z: o.z + s },   /* 7 */
+  ].map(proyek);
+
+  const P = (i) => ({ x: titik[i].x / Kanvas.dpr, y: titik[i].y / Kanvas.dpr });
+
+  /* Penapa atas (4-5-6-7) — selalu terlihat dari kamera yang di atas. */
+  const sisiAtas = [4, 5, 6, 7];
+  /* Dua sisi tegak: pilih mana yang menghadap kamera, dari arah yaw. */
+  const kiri = Kam.yaw > 0;
+  const sisiKiri = kiri ? [0, 3, 7, 4] : [1, 2, 6, 5];
+  const sisiKanan = kiri ? [5, 6, 2, 1] : [4, 7, 3, 0];
+
+  const isi = (indeks, warnaIsi) => {
+    ctx.beginPath();
+    ctx.moveTo(P(indeks[0]).x, P(indeks[0]).y);
+    for (let i = 1; i < indeks.length; i++) {
+      ctx.lineTo(P(indeks[i]).x, P(indeks[i]).y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = warnaIsi;
+    ctx.fill();
+    ctx.strokeStyle = shade(warna, 1.45);
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  };
+
+  /* Penapa bawah (0-1-2-3) digambar paling dulu — walau kamera di atas,
+     sudut bawah kubus tetap terlihat dan tanpa ini kubus terlihat seperti
+     "buku terbuka" dan bukan volume tertutup. */
+  isi([0, 1, 2, 3], shade(warna, .42));
+  isi(sisiKiri, shade(warna, .62));    /* sisi gelap */
+  isi(sisiKanan, shade(warna, .95));    /* sisi sedang */
+  isi(sisiAtas, shade(warna, 1.32));    /* penapa terang */
+}
+
+function shade(hex, faktor) {
+  const c = hex.trim();
+  if (c.startsWith("#")) {
+    const n = parseInt(c.slice(1), 16);
+    const r = Math.min(255, ((n >> 16) & 255) * faktor) | 0;
+    const g = Math.min(255, ((n >> 8) & 255) * faktor) | 0;
+    const b = Math.min(255, (n & 255) * faktor) | 0;
+    return `rgb(${r},${g},${b})`;
+  }
+  return c;
+}
+
+/* Ukur kotak label TANPA menggambar — dipakai untuk mendeteksi tabrakan
+   antar label dan antara label dengan bentuk node. */
+function kotakLabel(ctx, x, y, teks, besar) {
+  ctx.save();
+  ctx.font = (besar ? "600 11.5px " : "600 10.5px ") +
+             '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif';
+  const lebar = ctx.measureText(teks).width + 14;
+  const tinggi = besar ? 20 : 17;
+  ctx.restore();
+  return { x: x - lebar / 2, y: y - tinggi / 2, w: lebar, h: tinggi };
+}
+
+function labelKartu(ctx, x, y, teks, warna, besar, dpr, sub) {
+  ctx.save();
+  ctx.font = (besar ? "600 11.5px " : "600 10.5px ") +
+             '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif';
+  const lebar = ctx.measureText(teks).width + 14;
+  const tinggi = besar ? 20 : 17;
+  const rx = x - lebar / 2, ry = y - tinggi / 2;
+
+  ctx.beginPath();
+  ctx.roundRect(rx, ry, lebar, tinggi, 6);
+  ctx.fillStyle = warnaTema("--panel", "#fff");
+  ctx.globalAlpha = .94;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = warna;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.fillStyle = warna;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(teks, x, y + .5);
+  ctx.restore();
+}
+
+/* ======================================================================
+   ANIMASI PAKET
+   ====================================================================== */
+function alirkanPesan(pengirim, paraPenerima, protokol) {
+  const warna = protokol === "UDP"
+    ? warnaTema("--udp", "#7c3aed")
+    : warnaTema("--tcp", "#2563eb");
+  const asal = pengirim === "SERVER" ? Dunia.node
+    : Dunia.laptop.find((l) => l.nama === pengirim);
+
+  if (!asal) return;
+
+  /* paket pengirim → server */
+  Dunia.paket.push({ dari: asal, ke: Dunia.node, t: 0, warna, laju: 1 / 1.15 });
+  if (pengirim === "SERVER") asal.paketKeluar = true;
+
+  /* server → tiap penerima, berurutan sedikit */
+  paraPenerima.forEach((nama, i) => {
+    const s = Dunia.laptop.find((l) => l.nama === nama);
+    if (!s) return;
+    setTimeout(() => {
+      if (!Dunia.node) return;
+      Dunia.paket.push({ dari: Dunia.node, ke: s, t: 0, warna, laju: 1 / 1.15 });
+    }, (i + 1) * 130);
+  });
+}
+
+/* ======================================================================
+ RENDERER 3D — DUA MODE:
+   1. "webgl"  : three.js + aset GLB (model dari Tripo). Kalau file GLB
+                 belum ada, pakai balok sederhana sebagai gantinya.
+   2. "canvas" : renderer 2D procedural yang lama (gambar3d).
+
+ Otomatis memilih: pakai WebGL kalau bisa. Kalau WebGL gagal (laptop
+ lama, driver masalah), dashboard TETAP jalan dengan Canvas 2D — tidak
+ pernah layar kosong.
+ ====================================================================== */
+let peta3d = null;          /* Peta3D instance (mode webgl) */
+let modeRender = "canvas"; /* "webgl" | "canvas" */
+let dataKeadaan = null;    /* data terakhir dari server */
+
+async function siapkan3d() {
+const kanvas = el("kanvas3d");
+const kanvas2d = el("kanvas2d");
+if (!kanvas || !kanvas2d) return;
+
+const stat = el("status-aset");
+const pilihan = el("pilih-render");
+const mau = () => (pilihan && pilihan.value) || "auto";
+
+/* Coba WebGL dulu. Kalau gagal, tetap pakai Canvas 2D. */
+try {
+  const { Peta3D } = await import("./peta3d.js");
+  const p = new Peta3D(kanvas);
+  await p.init();
+  p.sesuaikanUkuran();
+  peta3d = p;
+  window.__peta3d = p;   /* untuk pemeriksaan/debug — dipakai skrip uji */
+
+  /* Muat aset GLB. Gagal = bukan error, cuma pakai balok. */
+  const hasil = await p.muatAset();
+  const ket = hasil.ket || (hasil.berhasil > 0
+    ? `aset 3D: ${hasil.berhasil}/2 siap`
+    : "aset 3D: belum ada (pakai model built-in)");
+  el("status-aset").textContent = hasil.berhasil === 2
+    ? "aset 3D siap"
+    : Number(hasil.berhasil || 0) > 0
+      ? `aset 3D: ${hasil.berhasil}/2 model`
+      : "aset 3D: model bawaan";
+
+  /* Radio: kalau ada aset, WebGL adalah pilihan utama. */
+  if (hasil.berhasil > 0 && mau() === "auto") aktifkanWebgl(true);
+  else aktifkanWebgl(false);
+
+  /* Kalau aset gagal dimuat, tampilkan catatan jujur (bukan alert). */
+  if (hasil.gagal.length && stat) {
+    stat.textContent += " · " + hasil.gagal.join(", ") + " gagal";
+  }
+} catch (err) {
+  console.warn("WebGL tidak tersedia, pakai Canvas 2D", err);
+  if (stat) stat.textContent = "Canvas 2D (WebGL tidak tersedia)";
+  aktifkanWebgl(false);
+}
+
+/* Coba ulang aset yang gagal, tiap 10 detik. Aset bisa saja baru saja
+   disalin ke folder server — jadi dashboard harus terus mencoba,
+   bukan menyerah setelah satu kali 404. */
+setInterval(async () => {
+  if (!peta3d) return;
+  const stat = el("status-aset");
+  if (!stat || !/gagal/.test(stat.textContent || "")) return;
+  const hasil = await peta3d.muatUlang();
+  if (hasil && hasil.berhasil > 0) {
+    stat.textContent = `aset 3D: ${hasil.berhasil} siap`;
+    perbaruiPeta();
+  }
+}, 10000);
+
+/* Ganti mode lewat dropdown */
+if (pilihan) {
+  pilihan.addEventListener("change", () => {
+    if (pilihan.value === "webgl" && peta3d) aktifkanWebgl(true);
+    else if (pilihan.value === "canvas") aktifkanWebgl(false);
+    else aktifkanWebgl(peta3d != null && (peta3d.pakaiAset || true));
+  });
+}
+
+if (dataKeadaan) perbaruiPeta();
+}
+
+/* Aktifkan salah satu renderer. Kanvas yang tidak dipakai disembunyikan. */
+function aktifkanWebgl(pakai) {
+modeRender = pakai && peta3d ? "webgl" : "canvas";
+const k3 = el("kanvas3d"), k2 = el("kanvas2d");
+if (k3) k3.style.display = modeRender === "webgl" ? "block" : "none";
+if (k2) k2.style.display = modeRender === "canvas" ? "block" : "none";
+if (modeRender === "canvas") {
+  /* Paksa hitung ulang ukuran canvas 2D yang baru jadi terlihat. */
+  requestAnimationFrame(() => { ukuranKanvas(); gambar3d(performance.now()); });
+}
+if (dataKeadaan) perbaruiPeta();
+}
+
+/* Sinkronkan scene 3D dengan data server (dipanggil tiap refresh). */
+function perbaruiPeta() {
+if (modeRender === "webgl" && peta3d && dataKeadaan) {
+  peta3d.perbarui(dataKeadaan);
+}
+}
+
+/* ======================================================================
+ MULAI / STOP / UKURAN
+ ====================================================================== */
+function ukuranKanvas() {
+  /* Renderer 2D memakai canvas #kanvas2d. #kanvas3d dipakai three.js
+     (mode WebGL). Dua canvas terpisah supaya tidak saling menimpa. */
+  const kanvas = el("kanvas2d") || el("kanvas3d");
+  if (!kanvas) return;
+  const kotak = kanvas.parentElement.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  Kanvas.lebar = Math.max(320, kotak.width);
+  Kanvas.tinggi = Math.max(240, kotak.height);
+  Kanvas.dpr = dpr;
+  kanvas.width = Math.round(Kanvas.lebar * dpr);
+  kanvas.height = Math.round(Kanvas.tinggi * dpr);
+  kanvas.style.width = Kanvas.lebar + "px";
+  kanvas.style.height = Kanvas.tinggi + "px";
+  Kanvas.ctx = kanvas.getContext("2d");
+  if (typeof sesuaikanKamera === "function") sesuaikanKamera();
+}
+
+let jedaAnim = false;
+let waktuTerakhir = 0;
+
+/*  PENGGERAK ANIMASI — setInterval, BUKAN requestAnimationFrame.
+
+    Kenapa bukan rAF: rAF MATI saat tab tidak aktif (pindah tab, jendela lain,
+    layar terkunci, atau pas presentasi pakai proyektor yang tab-nya tidak
+    fokus). Kalau penggeraknya rAF, peta jadi kosong persis di saat paling
+    penting. setInterval tetap jalan walau tab tidak fokus.
+
+    Ini jebakan yang sama pernah menimpa dashboard SPT (MKKL1030) — sudah
+    tercatat di vault, brain/Gotchas.md.
+*/
+function lingkar() {
+  const waktu = performance.now();
+  const dt = Math.min(.05, (waktu - (waktuTerakhir || waktu)) / 1000);
+  waktuTerakhir = waktu;
+
+  if (Kam.putarOtomatis && !KURANGI_GERAK && !jedaAnim) {
+    Kam.yaw += dt * 0.12;
+  }
+  /* (proyeksi ortografis: zoom lewat Kam.zoom, putar lewat Kam.yaw) */
+
+  /* majukan paket */
+  for (let i = Dunia.paket.length - 1; i >= 0; i--) {
+    const pk = Dunia.paket[i];
+    pk.t += dt * pk.laju;
+    if (pk.t >= 1) Dunia.paket.splice(i, 1);
+  }
+
+  if (modeRender === "webgl" && peta3d) {
+    peta3d.tick(dt);
+  } else {
+    gambar3d(waktu);
+  }
+}
+
+/* seret untuk memutar, gulir untuk zoom */
+(function pasangKontrol3d() {
+  let seret = false, x0 = 0, y0 = 0, yaw0 = 0, pitch0 = 0;
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const kanvas = el("kanvas2d") || el("kanvas3d");
+    if (!kanvas) return;
+
+    kanvas.addEventListener("pointerdown", (e) => {
+      seret = true; x0 = e.clientX; y0 = e.clientY;
+      yaw0 = Kam.yaw; pitch0 = Kam.pitch;
+      Kam.putarOtomatis = false;
+      kanvas.setPointerCapture(e.pointerId);
+    });
+    kanvas.addEventListener("pointermove", (e) => {
+      if (!seret) return;
+      Kam.yaw = yaw0 + (e.clientX - x0) * 0.008;
+      Kam.pitch = Math.max(-1.2, Math.min(0.6, pitch0 - (e.clientY - y0) * 0.006));
+    });
+    const lepas = (e) => {
+      seret = false;
+      try { kanvas.releasePointerCapture(e.pointerId); } catch (_) {}
+    };
+    kanvas.addEventListener("pointerup", lepas);
+    kanvas.addEventListener("pointercancel", lepas);
+    kanvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      Kam.zoom = Math.max(0.45, Math.min(2.6, Kam.zoom * (e.deltaY > 0 ? 0.92 : 1.08)));
+    }, { passive: false });
+  });
+})();
+
+/* ======================================================================
+   NOTIFIKASI + TABEL + KARTU
+   ====================================================================== */
+let jamNotif = null;
+function beritahu(teks, jenis = "info") {
+  const t = el("pesan-melayang");
+  t.textContent = teks;
+  t.className = "tampil " + jenis;
+  clearTimeout(jamNotif);
+  jamNotif = setTimeout(() => { t.className = ""; }, 3400);
+}
+
+function gambarLaptop(daftar) {
+  const wadah = el("daftar-laptop");
+  if (!daftar.length) {
+    wadah.innerHTML = '<div class="kosong">Belum ada laptop tersambung.</div>';
+    return;
+  }
+  const cari = (el("cari").value || "").toLowerCase();
+  const disaring = daftar.filter((x) =>
+    (x.nama + " " + (x.sistem || "")).toLowerCase().includes(cari));
+
+  wadah.innerHTML = `<div class="petak-laptop${disaring.length === 1 ? " satu" : ""}">` +
+    disaring.map((x) => `
+      <div class="laptop" data-nama="${AMAN(x.nama)}"
+           title="IP ${AMAN(x.ip)} · node ${AMAN(x.node)} · tersambung ${AMAN(x.lama)}">
+        <div class="baris-atas">
+          <span class="titik"></span>
+          <span class="nama">${AMAN(x.nama)}</span>
+          <span class="pil on">TCP</span>
+        </div>
+        <div class="baris-atas" style="margin-top:3px">
+          <span class="meta-tip" style="font-size:10.5px;color:var(--tinta-2)">
+            ${AMAN(x.sistem || "?")} · ${AMAN(x.lama)}</span>
+        </div>
+        <div class="aksi">
+          <button data-aksi="pesan" data-nama="${AMAN(x.nama)}">Pesan</button>
+          <button data-aksi="kunci" data-nama="${AMAN(x.nama)}">Kunci</button>
+          <button data-aksi="restart" data-nama="${AMAN(x.nama)}">Restart</button>
+          <button data-aksi="bahaya" data-nama="${AMAN(x.nama)}" class="bahaya">Matikan</button>
+        </div>
+      </div>`).join("") + "</div>";
+}
+
+function gambarNode(d) {
+  const wadah = el("isi-node");
+  const baris = [];
+  if (d.node) {
+    baris.push(`<tr>
+      <td class="mono"><b>${AMAN(d.node.nama)}</b></td>
+      <td class="mono">—</td><td class="mono">—</td>
+      <td><span class="lencana tcp">node ini</span></td></tr>`);
+  }
+  for (const t of (d.tetangga || [])) {
+    baris.push(`<tr>
+      <td class="mono"><b>${AMAN(t.nama)}</b></td>
+      <td class="mono">${t.tcp_ms != null ? Number(t.tcp_ms).toFixed(2) + " ms" : "—"}</td>
+      <td class="mono">${t.udp_ms != null ? Number(t.udp_ms).toFixed(2) + " ms" : "—"}</td>
+      <td><span class="lencana ${t.hidup ? "tcp" : "mati"}">${t.hidup ? "hidup" : "mati"}</span></td></tr>`);
+  }
+  for (const x of (d.dikenal || [])) {
+    if ((d.tetangga || []).some((t) => t.nama === x.nama)) continue;
+    baris.push(`<tr>
+      <td class="mono"><b>${AMAN(x.nama)}</b></td>
+      <td class="mono">—</td><td class="mono">—</td>
+      <td><span class="lencana mati">tidak tersambung</span></td></tr>`);
+  }
+  wadah.innerHTML = baris.length
+    ? baris.join("")
+    : '<tr><td colspan="4" class="kosong">Belum ada node lain.</td></tr>';
+  el("h-node").textContent = `(${baris.length})`;
+}
+
+function gambarPesan(daftar) {
+  const tbody = el("isi-pesan-tabel");
+  if (!daftar.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="kosong">Belum ada pesan.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = daftar.map((p) => {
+    const protokol = p.protokol === "UDP" ? "UDP" : "TCP";
+    const kelas = protokol === "UDP" ? "udp" : "tcp";
+    const catatan = p.terjamin === 0 ? " · tanpa jaminan" : "";
+    return `<tr>
+      <td class="mono">${AMAN(String(p.waktu || "").slice(11, 19))}</td>
+      <td>${AMAN(p.pengirim)}</td>
+      <td><span class="lencana ${kelas}">${protokol}</span></td>
+      <td title="${AMAN(p.isi)}">${AMAN(p.isi)}<span style="color:var(--tinta-3)">${catatan}</span></td></tr>`;
+  }).join("");
+}
+
+function gambarKejadian(daftar) {
+  const tbody = el("isi-kejadian");
+  if (!daftar.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="kosong">Belum ada kejadian.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = daftar.map((k) => `<tr>
+    <td class="mono">${AMAN(String(k.waktu || "").slice(11, 19))}</td>
+    <td>${AMAN(k.nama)}</td>
+    <td><span class="lencana ${k.jenis === "masuk" ? "tcp" : "mati"}">${AMAN(k.jenis)}</span></td>
+  </tr>`).join("");
+}
+
+/* ======================================================================
+   PENYEGARAN KEADAAN
+   ====================================================================== */
+async function muat(paksa = false) {
+  if (jeda && !paksa) return;
+  try {
+    const r = await fetch("/api/keadaan", { cache: "no-store" });
+    const d = await r.json();
+
+    const baru = d.pesan.filter((p) => p.id > idPesanTerakhir);
+    const namaSekarang = new Set(d.online.map((x) => x.nama));
+
+    if (dataTerakhir) {
+      for (const k of dataTerakhir.online) {
+        if (!namaSekarang.has(k.nama)) laptopPutus.set(k.nama, Date.now());
+      }
+    }
+    for (const n of namaSekarang) laptopPutus.delete(n);
+
+    /* pesan baru → animasikan */
+    for (const p of baru) {
+      const penerima = p.tujuan === "semua"
+        ? d.online.map((x) => x.nama).filter((n) => n !== p.pengirim)
+        : [p.tujuan];
+      alirkanPesan(p.pengirim, penerima, p.protokol);
+
+      /* Di mode WebGL, gambar paket cahaya di atas kabel:
+           KUNING = laptop → server (pesan naik)
+           BIRU   = server → laptop (pesan turun)
+         Dua arah digambar terpisah supaya beda "kirim" dan "terima"
+         terlihat, bukan cuma satu kilatan. */
+      if (modeRender === "webgl" && peta3d) {
+        const kuning = 0xf59e0b, biru = 0x38bdf8;
+        const asal = p.pengirim;
+        const pusat = peta3d.nodeUtama;
+
+        /* Naik: laptop → server. Kalau pengirim ada di node lain
+           (laptop n2), paketnya harus lewat mesh dulu — satu paket
+           kuning ke node-nya sendiri, lalu satu ke node utama. */
+        if (peta3d.node.has(asal)) {
+          const nodeAsal = peta3d.node.get(asal)?.userData?.node || pusat;
+          peta3d.terbangkan(asal, nodeAsal === asal ? pusat : nodeAsal, kuning);
+          if (nodeAsal !== pusat) peta3d.terbangkan(nodeAsal, pusat, kuning, { kecil: true });
+        }
+
+        /* Turun: server → tiap penerima. Penerima di node lain
+           (PC05/PC06 di n2) dapat paket biru yang menyeberang mesh. */
+        for (const tujuan of penerima) {
+          if (!peta3d.node.has(tujuan)) continue;
+          const nodeTujuan = peta3d.node.get(tujuan)?.userData?.node || pusat;
+          if (nodeTujuan !== pusat) {
+            peta3d.terbangkan(pusat, nodeTujuan, biru);
+            peta3d.terbangkan(nodeTujuan, tujuan, biru, { kecil: true });
+          } else {
+            peta3d.terbangkan(pusat, tujuan, biru);
+          }
+        }
+      }
+      idPesanTerakhir = Math.max(idPesanTerakhir, p.id);
+    }
+
+    dataTerakhir = d;
+    dataKeadaan = d;
+    susunDunia(d);
+    sesuaikanKamera();
+    perbaruiPeta();
+
+    gambarLaptop(d.online);
+    gambarNode(d);
+    gambarPesan(d.pesan);
+    gambarKejadian(d.kejadian);
+
+    /* kartu ringkasan */
+    el("s-online").textContent = d.online.length;
+    el("s-node").textContent = (d.tetangga || []).length + (d.dikenal || []).length;
+    el("s-pesan").textContent = d.jumlah.pesan;
+    /* Jumlah anggota kluster = node lokal + tetangga yang dikenal.
+       `dikenal` sengaja TIDAK memuat node lokal (frontend memakainya untuk
+       menggambar node kluster — kalau ikut, node lokal ter gambar 2×),
+       jadi harus ditambah 1 di sini. */
+    const totalNode = (d.dikenal || []).length + 1;
+    el("h-peta").textContent = `${d.online.length} laptop · ${totalNode} node`;
+    el("h-online").textContent = `(${d.online.length})`;
+    el("k-online").textContent = d.online.length ? "tersambung" : "belum ada";
+    el("k-pesan").textContent = "lewat TCP + UDP";
+
+    const t = (d.tetangga || [])[0];
+    /* Dua desimal di SEMUA tempat — "0.49 ms" dan "0.5 ms" berdampingan
+       terbaca seperti dua pengukuran berbeda, padahal sama. */
+    const ms = (x) => (x == null ? "—" : Number(x).toFixed(2));
+    el("s-latensi").textContent = t && t.tcp_ms != null
+      ? `TCP ${ms(t.tcp_ms)} · UDP ${ms(t.udp_ms)} ms` : "—";
+
+    /* Format waktu disamakan dengan tabel (titik dua), bukan format
+       lokal yang memakai titik — dua gaya jam berdampingan terlihat
+       seperti dua sumber data berbeda. */
+    const sk = new Date();
+    el("jam").textContent = "diperbarui " +
+      [sk.getHours(), sk.getMinutes(), sk.getSeconds()]
+        .map((n) => String(n).padStart(2, "0")).join(":");
+    el("perintah-klien").textContent = `python3 client.py --server ${location.hostname}`;
+    el("titik-hidup").style.background = "var(--hidup)";
+    el("kosong-peta").style.display = d.online.length ? "none" : "flex";
+    if (d.node) {
+      el("sub-node").textContent =
+        `MK Pemrograman Jaringan Kluster · node ${d.node.nama} · TCP ${d.node.tcp} · UDP ${d.node.udp}`;
+    }
+  } catch (e) {
+    el("titik-hidup").style.background = "var(--mati)";
+  }
+}
+
+/* ======================================================================
+   INTERAKSI
+   ====================================================================== */
+let jalur = "TCP";
+
+function setJalur(j) {
+  jalur = j;
+  el("pilih-tcp").className = j === "TCP" ? "pilih" : "";
+  el("pilih-udp").className = j === "UDP" ? "pilih udp" : "";
+  el("jalur-info").textContent = j;
+  el("btn-kirim").className = j === "UDP" ? "tombol-utama lega tonal udp" : "tombol-utama lega";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  ukuranKanvas();
+  window.addEventListener("resize", () => { ukuranKanvas(); });
+
+  /* tema */
+  el("btn-terang").onclick = (e) => setTema("terang", e.currentTarget);
+  el("btn-gelap").onclick = (e) => setTema("gelap", e.currentTarget);
+  const temaSimpan = localStorage.getItem("tema-kluster");
+  /* Pemuatan awal: pasang langsung, tanpa animasi lingkaran. */
+  if (temaSimpan) setTema(temaSimpan, null, true);
+
+  el("btn-jeda").onclick = (e) => {
+    jeda = !jeda;
+    e.target.textContent = jeda ? "Lanjut" : "Jeda";
+    if (!jeda) muat(true);
+  };
+  el("btn-besar").onclick = () => {
+    document.body.classList.toggle("besar");
+  };
+
+  el("pilih-tcp").onclick = () => setJalur("TCP");
+  el("pilih-udp").onclick = () => setJalur("UDP");
+
+  /* kirim pesan */
+  const kirim = async () => {
+    const isi = el("isi-pesan").value.trim();
+    if (!isi) { beritahu("Pesannya masih kosong", "gagal"); return; }
+    const url = jalur === "UDP" ? "/api/pesan-udp" : "/api/pesan";
+    try {
+      const r = await fetch(`${url}?tujuan=semua&isi=${encodeURIComponent(isi)}`);
+      const d = await r.json();
+      if (d.ok) {
+        beritahu(jalur === "UDP"
+          ? "terkirim via UDP (tidak dijamin sampai)"
+          : `terkirim ke ${d.terkirim ?? 0} laptop`, "ok");
+        el("isi-pesan").value = "";
+        hitungSisa();
+        muat(true);
+      } else {
+        beritahu(d.pesan || "gagal mengirim", "gagal");
+      }
+    } catch (e) {
+      beritahu("Tidak bisa menghubungi server", "gagal");
+    }
+  };
+  el("btn-kirim").onclick = kirim;
+  el("isi-pesan").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); kirim(); }
+  });
+  el("isi-pesan").addEventListener("input", hitungSisa);
+
+  /* cari laptop */
+  el("cari").addEventListener("input", () => {
+    if (dataTerakhir) gambarLaptop(dataTerakhir.online);
+  });
+
+  /* tombol aksi pada kartu laptop */
+  el("daftar-laptop").addEventListener("click", async (e) => {
+    const t = e.target.closest("button[data-aksi]");
+    if (!t) return;
+    const nama = t.dataset.nama;
+    const aksi = t.dataset.aksi;
+    const detail = t.dataset.detail || "";
+    try {
+      const r = await fetch(`/api/perintah?sasaran=${encodeURIComponent(nama)}` +
+        `&aksi=${encodeURIComponent(aksi)}&keterangan=${encodeURIComponent(detail)}`);
+      const d = await r.json();
+      beritahu(d.ok ? `perintah ${aksi} → ${nama}` : (d.pesan || "gagal"), d.ok ? "ok" : "gagal");
+      muat(true);
+    } catch (err) {
+      beritahu("Tidak bisa menghubungi server", "gagal");
+    }
+  });
+
+  /* unduh CSV */
+  el("btn-csv").onclick = () => {
+    const baris = [["jam", "pengirim", "tujuan", "protokol", "terjamin", "isi"]];
+    for (const p of (dataTerakhir ? dataTerakhir.pesan : [])) {
+      baris.push([p.waktu, p.pengirim, p.tujuan, p.protokol,
+                  p.terjamin ? "ya" : "tidak", p.isi]);
+    }
+    const isi = baris.map((b) => b.map((x) =>
+      `"${String(x ?? "").replace(/"/g, '""')}"`).join(";")).join("\n");
+    const blob = new Blob(["﻿" + isi], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "riwayat-kluster.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  setJalur("TCP");
+  hitungSisa();
+  muat(true);
+  setInterval(lingkar, 33);          /* ~30 fps, jalan walau tab tak fokus */
+  setInterval(() => muat(), 1200);
+
+  /* Siapkan renderer 3D (WebGL + aset GLB). Kalau gagal, Canvas 2D
+     tetap jalan — dashboard tidak pernah kosong. */
+  siapkan3d();
+
+  /* Kanvas ikut menyesuaikan saat jendela diubah ukurannya. */
+  window.addEventListener("resize", () => {
+    ukuranKanvas();
+    if (peta3d) peta3d.sesuaikanUkuran();
+  });
+});
+
+function terapkanTema(t) {
+  document.documentElement.setAttribute("data-tema", t);
+  localStorage.setItem("tema-kluster", t);
+  el("btn-terang").className = t === "terang" ? "pilih" : "";
+  el("btn-gelap").className = t === "gelap" ? "pilih" : "";
+}
+
+/* Lingkaran menyapu dari tombol yang diklik.
+   `tanpaAnimasi` dipakai saat memuat halaman: tema tersimpan harus
+   langsung terpasang, bukan dianimasikan seperti baru saja diklik. */
+function setTema(t, asal, tanpaAnimasi) {
+  const akar = document.documentElement;
+  if (akar.getAttribute("data-tema") === t) return;
+
+  const kurangi = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (tanpaAnimasi || !document.startViewTransition || kurangi) {
+    terapkanTema(t);
+    return;
+  }
+
+  /* Titik asal: tombol yang diklik. Kalau tidak diketahui, pakai tombol
+     tujuan supaya lingkarannya tetap masuk akal. */
+  const sumber = asal || el("btn-" + t);
+  const k = sumber.getBoundingClientRect();
+  const cx = k.left + k.width / 2;
+  const cy = k.top + k.height / 2;
+  /* Jari-jari harus menutup sudut TERJAUH layar. Kalau dihitung dari tepi
+     terdekat, sudut layar tidak ikut tersapu dan tema lama tertinggal. */
+  const jari = Math.hypot(
+    Math.max(cx, window.innerWidth - cx),
+    Math.max(cy, window.innerHeight - cy)
+  );
+
+  const transisi = document.startViewTransition(() => {
+    akar.classList.add("tanpa-transisi");
+    terapkanTema(t);
+    void akar.offsetWidth;              /* paksa hitung ulang gaya */
+    akar.classList.remove("tanpa-transisi");
+  });
+
+  transisi.ready.then(() => {
+    akar.animate(
+      { clipPath: [
+          `circle(0px at ${cx}px ${cy}px)`,
+          `circle(${jari}px at ${cx}px ${cy}px)`,
+      ] },
+      { duration: 700, easing: "ease-in-out",
+        pseudoElement: "::view-transition-new(root)" }
+    );
+  }).catch(() => {});
+}
+
+function hitungSisa() {
+  const n = el("isi-pesan").value.length;
+  el("sisa").textContent = String(2000 - n);
+}
+</script>
+</body>
+</html>
