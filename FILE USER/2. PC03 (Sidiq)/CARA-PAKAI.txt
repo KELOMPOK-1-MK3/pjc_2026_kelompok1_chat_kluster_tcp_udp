@@ -11,9 +11,10 @@ PERSIAPAN (cuma sekali)
    Kalau WiFi kampus memisahkan antar-laptop, pakai hotspot HP.
    Pastikan server (laptop ketua) juga masuk ke hotspot yang sama.
 
-3. Ganti isi server.txt kalau alamat server berubah.
-   Alamatnya dicetak server saat dijalankan, misalnya 192.168.1.7
-  (server.txt sekarang: 192.168.1.7:5000)
+3. Isi server.txt = alamat laptop ketua (IP:port). Alamatnya dicetak
+   server saat dijalankan, baris "Alamat untuk laptop pengguna".
+   Kalau IP berubah (ganti WiFi), buka Notepad, ketik IP baru, Save.
+   Pastikan formatnya  192.168.1.7:5000   (pakai titik dua, tanpa spasi)
 
 MENJALANKAN
 -----------

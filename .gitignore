@@ -16,3 +16,6 @@ FILE USER/*.zip
 
 # macOS
 .DS_Store
+
+# alamat server beda tiap jaringan
+FILE USER/*/server.txt
